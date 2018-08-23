@@ -16,6 +16,7 @@
  */
 
 #include <assert.h>
+#include <cstdint>
 
 #ifndef _MCSL_TAGGED_H_
 #define _MCSL_TAGGED_H_

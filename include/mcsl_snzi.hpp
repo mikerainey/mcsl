@@ -1,6 +1,9 @@
+#include <new>
+
 #include "mcsl_aligned.hpp"
 #include "mcsl_tagged.hpp"
 #include "mcsl_atomic.hpp"
+#include "mcsl_perworker.hpp"
 
 #ifndef _MCSL_SNZI_H_
 #define _MCSL_SNZI_H_
@@ -105,14 +108,17 @@ private:
 
   template <class Item>
   static
-  node* create_root_node(Item x) {
-    return (node*)tagged::tag_with(x, snzi_root_node_tag);
+  snzi_node* create_root_node(Item x) {
+    return (snzi_node*)tagged::tag_with(x, snzi_root_node_tag);
   }
   
 public:
 
   snzi_node(snzi_node* _parent = nullptr) {
-    parent = (_parent == nullptr) ? create_root_node(_parent) : _parent;
+    {
+      auto p = (_parent == nullptr) ? create_root_node(_parent) : _parent;
+      parent.get() = p;
+    }
     {
       counter_type c = {.c = 0, .v = 0};
       counter.get().store(c);
@@ -135,8 +141,13 @@ public:
     return snzi_decrement(*this);
   }
 
-  bool is_nonzero() const {
-    return get_counter().load() > 0;
+  bool is_nonzero() {
+    return get_counter().load().c > 0;
+  }
+
+  static
+  bool is_root_node(const snzi_node* n) {
+    return tagged::tag_of(n) == snzi_root_node_tag;
   }
   
 };
@@ -144,7 +155,7 @@ public:
 /*---------------------------------------------------------------------*/
 /* Scalable Non-Zero Indicator tree container */
 
-template <std::size_t height>
+template <std::size_t height=default_max_nb_workers_lg>
 class snzi_fixed_capacity_tree {
 public:
 
@@ -163,9 +174,10 @@ private:
   cache_aligned_item<node_type> root;
 
   void initialize_heap() {
+    new (&root.get()) node_type;
     // cells at indices 0 and 1 are not used
     for (std::size_t i = 2; i < 4; i++) {
-      new (&heap[i]) node_type(&root);
+      new (&heap[i]) node_type(&(root.get()));
     }
     for (std::size_t i = 4; i < heap_size; i++) {
       new (&heap[i]) node_type(&heap[i / 2]);
@@ -177,6 +189,20 @@ private:
       (&heap[i])->~node_type();
     }
   }
+  
+  inline
+  std::size_t leaf_position_of(std::size_t i) {
+    auto k = nb_leaves + (i & (nb_leaves - 1));
+    assert(k >= 2 && k < heap_size);
+    return k;
+  }
+
+  inline
+  node_type& at(std::size_t i) {
+    assert(i < nb_leaves);
+    return heap[leaf_position_of(i)];
+  }
+
 
 public:
 
@@ -188,10 +214,9 @@ public:
     destroy_heap();
   }
 
-  node_type& operator[](std::size_t i) {
-    auto k = nb_leaves + (i & (nb_leaves - 1));
-    assert(k >= 2 && k < heap_size);
-    return heap[k];
+  inline
+  node_type& mine() {
+    return at(unique_id::get_my_id());
   }
   
 };

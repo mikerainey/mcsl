@@ -34,7 +34,8 @@ private:
     typename std::aligned_storage<item_szb, cache_align_szb>::type;
   
   aligned_item_type items[capacity] __attribute__ ((aligned (cache_align_szb)));
-  
+
+  inline
   Item& at(std::size_t i) {
     assert(i < capacity);
     return *reinterpret_cast<Item*>(items + i);

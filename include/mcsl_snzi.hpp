@@ -164,11 +164,17 @@ private:
 
   void initialize_heap() {
     // cells at indices 0 and 1 are not used
-    for (int i = 2; i < 4; i++) {
+    for (std::size_t i = 2; i < 4; i++) {
       new (&heap[i]) node_type(&root);
     }
-    for (int i = 4; i < heap_size; i++) {
+    for (std::size_t i = 4; i < heap_size; i++) {
       new (&heap[i]) node_type(&heap[i / 2]);
+    }
+  }
+
+  void destroy_heap() {
+    for (std::size_t i = 2; i < heap_size; i++) {
+      (&heap[i])->~node_type();
     }
   }
 
@@ -176,6 +182,10 @@ public:
 
   snzi_fixed_capacity_tree() {
     initialize_heap();
+  }
+
+  ~snzi_fixed_capacity_tree() {
+    destroy_heap();
   }
 
   node_type& operator[](std::size_t i) {

@@ -13,8 +13,16 @@ namespace mcsl {
 
 /*---------------------------------------------------------------------*/
 /* Cache-aligned, fixed-capacity array */
-  
-template <class Item, std::size_t capacity,
+
+/* This class provides storage for a given number, capacity, of items
+ * of given type, Item, also ensuring that the starting of address of
+ * each item is aligned by a multiple of a given number of bytes,
+ * cache_align_szb (defaultly, MCSL_CACHE_LINE_SZB).
+ *
+ * The class *does not* itself initialize (or deinitialize) the
+ * storage cells.
+ */
+template <typename Item, std::size_t capacity,
           std::size_t cache_align_szb=MCSL_CACHE_LINE_SZB>
 class cache_aligned_fixed_capacity_array {
 private:
@@ -22,9 +30,10 @@ private:
   static constexpr
   int item_szb = sizeof(Item);
   
-  using aligned_item_type = typename std::aligned_storage<item_szb, cache_align_szb>::type;
+  using aligned_item_type =
+    typename std::aligned_storage<item_szb, cache_align_szb>::type;
   
-  aligned_item_type items[capacity];
+  aligned_item_type items[capacity] __attribute__ ((aligned (cache_align_szb)));
   
   Item& at(std::size_t i) {
     assert(i < capacity);
@@ -40,7 +49,20 @@ public:
   std::size_t size() const {
     return capacity;
   }
-    
+
+  // Iterator
+
+  using value_type = Item;
+  using iterator = value_type*;    
+
+  iterator begin() {
+    return reinterpret_cast<Item*>(items);
+  }
+
+  iterator end() {
+    return reinterpret_cast<Item*>(items + size());
+  }
+
 };
 
 /*---------------------------------------------------------------------*/
@@ -68,7 +90,10 @@ public:
 
 template <std::size_t cache_align_szb=MCSL_CACHE_LINE_SZB>
 void* alloc(std::size_t sizeb) {
-  return std::aligned_alloc(cache_align_szb, sizeb);
+  // aligned_sizeb needed because the second argument to aligned_alloc
+  // is required to be a multiple of the first
+  auto aligned_sizeb = sizeb + (sizeb % cache_align_szb);
+  return aligned_alloc(cache_align_szb, aligned_sizeb);
 }
 
 template <typename Item,
@@ -87,7 +112,7 @@ template <typename Item>
 class Malloc_deleter {
 public:
   void operator()(Item* ptr) {
-    free(ptr);
+    std::free(ptr);
   }
 };
 

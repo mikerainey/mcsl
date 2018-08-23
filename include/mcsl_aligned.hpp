@@ -82,8 +82,6 @@ public:
   }
       
 };  
-  
-} // end namespace
 
 /*---------------------------------------------------------------------*/
 /* Cache-aligned malloc */
@@ -115,6 +113,8 @@ public:
     std::free(ptr);
   }
 };
+
+} // end namespace
 
 #undef MCSL_CACHE_LINE_SZB
 

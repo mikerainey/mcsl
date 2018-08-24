@@ -115,6 +115,68 @@ public:
   }
 };
 
+/*---------------------------------------------------------------------*/
+/* Cache-aligned (heap-allocated) array */
+
+/* This class provides storage for a given number, size, of items
+ * of given type, Item, also ensuring that the starting of address of
+ * each item is aligned by a multiple of a given number of bytes,
+ * cache_align_szb (defaultly, MCSL_CACHE_LINE_SZB).
+ *
+ * The class *does not* itself initialize (or deinitialize) the
+ * storage cells.
+ */
+template <typename Item,
+          std::size_t cache_align_szb=MCSL_CACHE_LINE_SZB>
+class cache_aligned_array {
+private:
+  
+  static constexpr
+  int item_szb = sizeof(Item);
+  
+  using aligned_item_type =
+    typename std::aligned_storage<item_szb, cache_align_szb>::type;
+
+  std::unique_ptr<aligned_item_type, Malloc_deleter<aligned_item_type>> items;
+
+  std::size_t size;
+
+  inline
+  Item& at(std::size_t i) {
+    assert(i < size);
+    return *reinterpret_cast<Item*>(items.get() + i);
+  }
+  
+public:
+
+  cache_aligned_array(std::size_t _size)
+    : size(_size) {
+    items.reset(alloc_uninitialized_array<aligned_item_type>(_size));
+  }
+  
+  Item& operator[](std::size_t i) {
+    return at(i);
+  }
+  
+  std::size_t size() const {
+    return size;
+  }
+
+  // Iterator
+
+  using value_type = Item;
+  using iterator = value_type*;    
+
+  iterator begin() {
+    return reinterpret_cast<Item*>(items.get());
+  }
+
+  iterator end() {
+    return reinterpret_cast<Item*>(items.get() + size());
+  }
+
+};
+  
 } // end namespace
 
 #undef MCSL_CACHE_LINE_SZB

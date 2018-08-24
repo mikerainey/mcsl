@@ -12,7 +12,7 @@ namespace atomic {
 
 namespace {
 static constexpr
-int backoff_nb_cycles = 1l << 17;
+int backoff_nb_cycles = 1l << 12;
 } // end namespace
 
 template <class T>

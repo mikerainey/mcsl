@@ -1,6 +1,7 @@
 #include <type_traits>
 #include <cstdlib>
 #include <assert.h>
+#include <memory>
 
 #ifndef _MCSL_ALIGNED_H_
 #define _MCSL_ALIGNED_H_
@@ -139,7 +140,7 @@ private:
 
   std::unique_ptr<aligned_item_type, Malloc_deleter<aligned_item_type>> items;
 
-  std::size_t size;
+  std::size_t _size;
 
   inline
   Item& at(std::size_t i) {
@@ -149,9 +150,9 @@ private:
   
 public:
 
-  cache_aligned_array(std::size_t _size)
-    : size(_size) {
-    items.reset(alloc_uninitialized_array<aligned_item_type>(_size));
+  cache_aligned_array(std::size_t __size)
+    : _size(__size) {
+    items.reset(alloc_uninitialized_array<aligned_item_type>(__size));
   }
   
   Item& operator[](std::size_t i) {
@@ -159,7 +160,7 @@ public:
   }
   
   std::size_t size() const {
-    return size;
+    return _size;
   }
 
   // Iterator

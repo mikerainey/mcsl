@@ -1,6 +1,8 @@
 #include <memory>
+#include <assert.h>
 
 #include "mcsl_atomic.hpp"
+#include "mcsl_aligned.hpp"
 
 #ifndef _MCSL_CHASELEV_H_
 #define _MCSL_CHASELEV_H_
@@ -31,11 +33,11 @@ private:
     }
 
     T* get(std::size_t i) {
-      return items[index & (size() - 1)].load(std::memory_order_relaxed);
+      return items[i & (size() - 1)].load(std::memory_order_relaxed);
     }
 
-    void put(std::size_t i) {
-      items[index & (size() - 1)].store(x, std::memory_order_relaxed);
+    void put(std::size_t i, T* x) {
+      items[i & (size() - 1)].store(x, std::memory_order_relaxed);
     }
 
     circular_array* grow(std::size_t top, std::size_t bottom) {

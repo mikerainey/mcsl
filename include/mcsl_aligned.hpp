@@ -144,7 +144,7 @@ private:
 
   inline
   Item& at(std::size_t i) {
-    assert(i < size);
+    assert(i < size());
     return *reinterpret_cast<Item*>(items.get() + i);
   }
   

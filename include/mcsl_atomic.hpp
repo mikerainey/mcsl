@@ -10,13 +10,10 @@
 namespace mcsl {
 namespace atomic {
 
-namespace {
-static constexpr
-int backoff_nb_cycles = 1l << 12;
-} // end namespace
-
 template <class T>
 bool compare_exchange(std::atomic<T>& cell, T& expected, T desired) {
+  static constexpr
+  int backoff_nb_cycles = 1l << 12;
   if (cell.compare_exchange_strong(expected, desired)) {
     return true;
   }

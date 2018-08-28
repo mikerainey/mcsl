@@ -155,7 +155,7 @@ public:
 /*---------------------------------------------------------------------*/
 /* Scalable Non-Zero Indicator tree container */
 
-template <std::size_t height=default_max_nb_workers_lg>
+template <std::size_t height=perworker::default_max_nb_workers_lg>
 class snzi_fixed_capacity_tree {
 public:
 
@@ -216,7 +216,7 @@ public:
 
   inline
   node_type& mine() {
-    return at(unique_id::get_my_id());
+    return at(perworker::unique_id::get_my_id());
   }
   
 };

@@ -25,8 +25,7 @@ private:
 
   public:
 
-    circular_array(std::size_t size)
-      : items(size) { }
+    circular_array(std::size_t size) : items(size) { }
 
     std::size_t size() const {
       return items.size();

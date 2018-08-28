@@ -52,19 +52,6 @@ public:
     return capacity;
   }
 
-  // Iterator
-
-  using value_type = Item;
-  using iterator = value_type*;    
-
-  iterator begin() {
-    return reinterpret_cast<Item*>(items);
-  }
-
-  iterator end() {
-    return reinterpret_cast<Item*>(items + size());
-  }
-
 };
 
 /*---------------------------------------------------------------------*/

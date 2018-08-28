@@ -66,6 +66,14 @@ public:
     }
   }
 
+  std::size_t size() {
+    return (std::size_t)bottom.load() - top.load();
+  }
+
+  bool empty() {
+    return size() == 0;
+  }
+
   void push(T* x) {
     auto b = bottom.load(std::memory_order_relaxed);
     auto t = top.load(std::memory_order_acquire);

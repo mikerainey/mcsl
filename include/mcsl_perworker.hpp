@@ -101,6 +101,10 @@ public:
   reference mine() {
     return items[unique_id::get_my_id()];
   }
+
+  std::size_t size() const {
+    return capacity;
+  }
   
 };
   

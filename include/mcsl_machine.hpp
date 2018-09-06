@@ -79,6 +79,8 @@ void hwloc_assign_cpusets(std::size_t nb_workers,
                           resource_binding_type resource_binding) {
   hwloc_topology_init (&topology);
   hwloc_topology_load (topology);
+  hwloc_cpuset_t all_cpus =
+    hwloc_bitmap_dup (hwloc_topology_get_topology_cpuset(topology));
   
   std::vector<std::size_t> max_nb_workers_by_resource;
   std::vector<hwloc_coordinate_type> resource_ids;
@@ -97,13 +99,15 @@ void hwloc_assign_cpusets(std::size_t nb_workers,
     atomic::die("todo");
   } else {
     assert(resource_binding == resource_binding_all);
+    for (std::size_t worker_id = 0; worker_id != nb_workers; ++worker_id) {
+      hwloc_cpusets[worker_id] = hwloc_bitmap_dup(all_cpus);
+    }
+    return;
   }
   auto assignments = assign_workers_to_resources(resource_packing,
                                                  nb_workers,
                                                  max_nb_workers_by_resource,
                                                  resource_ids);
-  hwloc_cpuset_t all_cpus =
-    hwloc_bitmap_dup (hwloc_topology_get_topology_cpuset(topology));
   for (std::size_t worker_id = 0; worker_id != nb_workers; ++worker_id) {
     hwloc_cpuset_t cpuset;
     auto assignment = assignments[worker_id];

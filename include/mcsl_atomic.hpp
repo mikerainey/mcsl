@@ -10,6 +10,9 @@
 namespace mcsl {
 namespace atomic {
 
+/*---------------------------------------------------------------------*/
+/* Atomic compare-and-exchange operation, with backoff */
+
 template <class T>
 bool compare_exchange(std::atomic<T>& cell, T& expected, T desired) {
   static constexpr

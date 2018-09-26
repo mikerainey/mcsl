@@ -16,6 +16,8 @@ public:
   using counter_id_type = typename Configuration::counter_id_type;
   
   using time_point_type = std::chrono::time_point<std::chrono::system_clock>;
+
+  using configuration_type = Configuration;
   
 private:
 

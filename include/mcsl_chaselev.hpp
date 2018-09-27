@@ -139,6 +139,13 @@ using fiber_status_type = enum fiber_status_enum {
   fiber_status_finished
 };
 
+using ping_thread_status_type = enum ping_thread_status_enum {
+  ping_thread_status_active,
+  ping_thread_status_terminated,
+  ping_thread_status_finished,
+  ping_thread_status_disabled
+};
+
 template <typename Scheduler_configuration,
 	  template <typename> typename Fiber,
 	  typename Stats>
@@ -173,9 +180,14 @@ public:
   static
   void launch(std::size_t nb_workers) {
     std::atomic<std::size_t> nb_running_workers(nb_workers);
+    
     std::size_t nb_workers_exited = 0;
     std::mutex exit_lock;
     std::condition_variable exit_condition_variable;
+
+    ping_thread_status_type ping_thread_status = ping_thread_status_active;
+    std::mutex ping_thread_lock;
+    std::condition_variable ping_thread_condition_variable;
 
     using scheduler_status_type = enum scheduler_status_enum {
       scheduler_status_active,
@@ -255,12 +267,20 @@ public:
         assert((current == nullptr) && my_deque.empty());
         status = acquire();
       }
-      std::unique_lock<std::mutex> lk(exit_lock);
-      auto nb = ++nb_workers_exited;
-      if (perworker::unique_id::get_my_id() == 0) {
-	exit_condition_variable.wait(lk, [&] { return nb_workers_exited != nb_workers; });
-      } else if (nb == nb_workers) {
-	exit_condition_variable.notify_one();
+      if (ping_thread_status != ping_thread_status_disabled) {
+	assert(false);
+	ping_thread_status = ping_thread_status_terminated;
+	std::unique_lock<std::mutex> lk(ping_thread_lock);
+	ping_thread_condition_variable.wait(lk, [&] { return ping_thread_status == ping_thread_status_finished; });
+      }
+      {
+	std::unique_lock<std::mutex> lk(exit_lock);
+	auto nb = ++nb_workers_exited;
+	if (perworker::unique_id::get_my_id() == 0) {
+	  exit_condition_variable.wait(lk, [&] { return nb_workers_exited == nb_workers; });
+	} else if (nb == nb_workers) {
+	  exit_condition_variable.notify_one();
+	}
       }
     };
 
@@ -268,7 +288,7 @@ public:
       random_number_generators[i].seed(i);
     }
 
-    Scheduler_configuration::initialize_signal_handler();
+    Scheduler_configuration::initialize_signal_handler(ping_thread_status);
 
     for (int i = 1; i < nb_workers; i++) {
       auto t = std::thread([&] {
@@ -278,7 +298,7 @@ public:
       t.detach();
     }
     pthreads[0] = pthread_self();
-    Scheduler_configuration::launch_ping_thread(nb_workers, pthreads);
+    Scheduler_configuration::launch_ping_thread(nb_workers, pthreads, ping_thread_status, ping_thread_condition_variable);
     worker_loop();
   }
 

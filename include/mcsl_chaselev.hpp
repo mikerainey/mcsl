@@ -8,6 +8,7 @@
 #include "mcsl_aligned.hpp"
 #include "mcsl_random.hpp"
 #include "mcsl_stats.hpp"
+#include "mcsl_snzi.hpp"
 
 #ifndef _MCSL_CHASELEV_H_
 #define _MCSL_CHASELEV_H_
@@ -179,7 +180,7 @@ public:
 
   static
   void launch(std::size_t nb_workers) {
-    std::atomic<std::size_t> nb_running_workers(nb_workers);
+    snzi_fixed_capacity_tree<> nb_running_workers;
     
     std::size_t nb_workers_exited = 0;
     std::mutex exit_lock;
@@ -213,25 +214,26 @@ public:
     };
 
     auto acquire = [&] {
+      auto& my_nb_running_workers = nb_running_workers.mine();
       if (perworker::unique_id::get_nb_workers() == 1) {
-        --nb_running_workers;
+	assert(my_nb_running_workers.decrement());
         return scheduler_status_finished;
       }
-      if (--nb_running_workers == 0) {
+      if (my_nb_running_workers.decrement()) {
         return scheduler_status_finished;
       }
       auto sa = Stats::on_enter_acquire();
       auto my_id = perworker::unique_id::get_my_id();
       fiber_type* current = nullptr;
       while (true) {
-        nb_running_workers++;
+        my_nb_running_workers.increment();
         auto k = random_other_worker(my_id);
         current = deques[k].steal();
         if (current != nullptr) {
           Stats::increment(Stats::configuration_type::nb_steals);
           break;
         }
-        if (--nb_running_workers == 0) {
+        if (my_nb_running_workers.decrement()) {
           Stats::on_exit_acquire(sa);
           return scheduler_status_finished;
         }
@@ -243,6 +245,7 @@ public:
     };
 
     auto worker_loop = [&] {
+      nb_running_workers.mine().increment();
       Scheduler_configuration::initialize_worker();
       auto& my_deque = deques.mine();
       scheduler_status_type status = scheduler_status_active;

@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <deque>
 #include <thread>
+#include <condition_variable>
 
 #include "mcsl_atomic.hpp"
 #include "mcsl_aligned.hpp"
@@ -172,6 +173,9 @@ public:
   static
   void launch(std::size_t nb_workers) {
     std::atomic<std::size_t> nb_running_workers(nb_workers);
+    std::size_t nb_workers_exited = 0;
+    std::mutex exit_lock;
+    std::condition_variable exit_condition_variable;
 
     using scheduler_status_type = enum scheduler_status_enum {
       scheduler_status_active,
@@ -251,6 +255,13 @@ public:
         assert((current == nullptr) && my_deque.empty());
         status = acquire();
       }
+      std::unique_lock<std::mutex> lk(exit_lock);
+      auto nb = ++nb_workers_exited;
+      if (perworker::unique_id::get_my_id() == 0) {
+	exit_condition_variable.wait(lk, [&] { return nb_workers_exited != nb_workers; });
+      } else if (nb == nb_workers) {
+	exit_condition_variable.notify_one();
+      }
     };
 
     for (std::size_t i = 0; i < random_number_generators.size(); ++i) {
@@ -269,7 +280,6 @@ public:
     pthreads[0] = pthread_self();
     Scheduler_configuration::launch_ping_thread(nb_workers, pthreads);
     worker_loop();
-    while (nb_running_workers.load() > 0);
   }
 
   static

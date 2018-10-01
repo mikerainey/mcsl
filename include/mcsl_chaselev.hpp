@@ -246,7 +246,6 @@ public:
     };
 
     auto worker_loop = [&] {
-      nb_running_workers.mine().increment();
       Scheduler_configuration::initialize_worker();
       auto& my_deque = deques.mine();
       scheduler_status_type status = scheduler_status_active;
@@ -295,7 +294,9 @@ public:
 
     Scheduler_configuration::initialize_signal_handler(ping_thread_status);
 
-    for (int i = 1; i < nb_workers; i++) {
+    nb_running_workers[0].increment();
+    for (std::size_t i = 1; i < nb_workers; i++) {
+      nb_running_workers[i].increment();
       auto t = std::thread([&] {
         worker_loop();
       });

@@ -215,6 +215,11 @@ public:
   }
 
   inline
+  node_type& operator[](std::size_t i) {
+    return at(i);
+  }
+
+  inline
   node_type& mine() {
     return at(perworker::unique_id::get_my_id());
   }

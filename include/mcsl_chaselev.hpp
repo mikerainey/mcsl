@@ -216,7 +216,7 @@ public:
     auto acquire = [&] {
       auto& my_nb_running_workers = nb_running_workers.mine();
       if (perworker::unique_id::get_nb_workers() == 1) {
-	assert(my_nb_running_workers.decrement());
+        assert(my_nb_running_workers.decrement());
         return scheduler_status_finished;
       }
       if (my_nb_running_workers.decrement()) {
@@ -226,6 +226,7 @@ public:
       auto my_id = perworker::unique_id::get_my_id();
       fiber_type* current = nullptr;
       while (true) {
+        std::this_thread::yield();
         my_nb_running_workers.increment();
         auto k = random_other_worker(my_id);
         current = deques[k].steal();
@@ -271,19 +272,20 @@ public:
         status = acquire();
       }
       if (ping_thread_status != ping_thread_status_disabled) {
-	assert(false);
-	ping_thread_status = ping_thread_status_terminated;
-	std::unique_lock<std::mutex> lk(ping_thread_lock);
-	ping_thread_condition_variable.wait(lk, [&] { return ping_thread_status == ping_thread_status_finished; });
+        std::unique_lock<std::mutex> lk(ping_thread_lock);
+        if (ping_thread_status == ping_thread_status_active) {
+          ping_thread_status = ping_thread_status_terminated;
+        }
+        ping_thread_condition_variable.wait(lk, [&] { return ping_thread_status == ping_thread_status_finished; });
       }
       {
-	std::unique_lock<std::mutex> lk(exit_lock);
-	auto nb = ++nb_workers_exited;
-	if (perworker::unique_id::get_my_id() == 0) {
-	  exit_condition_variable.wait(lk, [&] { return nb_workers_exited == nb_workers; });
-	} else if (nb == nb_workers) {
-	  exit_condition_variable.notify_one();
-	}
+        std::unique_lock<std::mutex> lk(exit_lock);
+        auto nb = ++nb_workers_exited;
+        if (perworker::unique_id::get_my_id() == 0) {
+          exit_condition_variable.wait(lk, [&] { return nb_workers_exited == nb_workers; });
+        } else if (nb == nb_workers) {
+          exit_condition_variable.notify_one();
+        }
       }
     };
 
@@ -301,7 +303,7 @@ public:
       t.detach();
     }
     pthreads[0] = pthread_self();
-    Scheduler_configuration::launch_ping_thread(nb_workers, pthreads, ping_thread_status, ping_thread_condition_variable);
+    Scheduler_configuration::launch_ping_thread(nb_workers, pthreads, ping_thread_status, ping_thread_lock, ping_thread_condition_variable);
     worker_loop();
   }
 

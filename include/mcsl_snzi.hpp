@@ -223,6 +223,36 @@ public:
   node_type& mine() {
     return at(perworker::unique_id::get_my_id());
   }
+
+  node_type& get_root() {
+    return root.get();
+  }
+  
+};
+
+/*---------------------------------------------------------------------*/
+/* SNZI-based, termination-detection barrier */
+
+template <std::size_t height=perworker::default_max_nb_workers_lg>
+class snzi_termination_detection_barrier {
+private:
+
+  snzi_fixed_capacity_tree<height> tree;
+
+public:
+
+  bool set_active(bool active) {
+    if (active) {
+      tree.mine().increment();
+      return false;
+    } else {
+      return tree.mine().decrement();
+    }
+  }
+
+  bool is_terminated() {
+    return ! tree.get_root().is_nonzero();
+  }
   
 };
 

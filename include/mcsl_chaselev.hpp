@@ -215,7 +215,7 @@ public:
 
     auto acquire = [&] {
       auto& my_nb_running_workers = nb_running_workers.mine();
-      if (perworker::unique_id::get_nb_workers() == 1) {
+      if (nb_workers == 1) {
         assert(my_nb_running_workers.decrement());
         return scheduler_status_finished;
       }

@@ -72,13 +72,9 @@ perworker::array<hwloc_cpuset_t> hwloc_cpusets;
   
 hwloc_topology_t topology;
 
-  // later: introduce class to automatically initialize / destroy the topology object
-
 void hwloc_assign_cpusets(std::size_t nb_workers,
                           resource_packing_type resource_packing,
                           resource_binding_type resource_binding) {
-  hwloc_topology_init (&topology);
-  hwloc_topology_load (topology);
   hwloc_cpuset_t all_cpus =
     hwloc_bitmap_dup (hwloc_topology_get_topology_cpuset(topology));
   
@@ -145,6 +141,31 @@ void assign_cpusets(std::size_t nb_workers,
 void pin_calling_worker() {
 #ifdef MCSL_HAVE_HWLOC
   hwloc_pin_calling_worker();
+#endif
+}
+
+void initialize_hwloc(std::size_t nb_workers, bool& numa_alloc_interleaved) {
+#ifdef MCSL_HAVE_HWLOC
+  hwloc_topology_init (&topology);
+  hwloc_topology_load (topology);
+  if (numa_alloc_interleaved) {
+    hwloc_cpuset_t all_cpus =
+      hwloc_bitmap_dup(hwloc_topology_get_topology_cpuset(topology));
+    int err = hwloc_set_membind(topology, all_cpus, HWLOC_MEMBIND_INTERLEAVE, 0);
+    if (err < 0) {
+      printf("Warning: failed to set NUMA round-robin allocation policy\n");
+    } else {
+      numa_alloc_interleaved = true;
+    }
+  }
+#else
+  numa_alloc_interleaved = false;  
+#endif
+}
+
+void destroy_hwloc() {
+#ifdef MCSL_HAVE_HWLOC
+  hwloc_topology_destroy(topology);
 #endif
 }
   

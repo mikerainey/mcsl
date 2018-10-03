@@ -180,7 +180,7 @@ public:
 
   static
   void launch(std::size_t nb_workers) {
-    snzi_fixed_capacity_tree<> nb_running_workers;
+    snzi_termination_detection_barrier<> termination_barrier;
     
     std::size_t nb_workers_exited = 0;
     std::mutex exit_lock;
@@ -214,27 +214,27 @@ public:
     };
 
     auto acquire = [&] {
-      auto& my_nb_running_workers = nb_running_workers.mine();
       if (nb_workers == 1) {
-        assert(my_nb_running_workers.decrement());
-        return scheduler_status_finished;
-      }
-      if (my_nb_running_workers.decrement()) {
+        termination_barrier.set_active(false);
         return scheduler_status_finished;
       }
       auto sa = Stats::on_enter_acquire();
+      termination_barrier.set_active(false);
       auto my_id = perworker::unique_id::get_my_id();
       fiber_type* current = nullptr;
-      while (true) {
+      while (current == nullptr) {
         std::this_thread::yield();
-        my_nb_running_workers.increment();
         auto k = random_other_worker(my_id);
-        current = deques[k].steal();
-        if (current != nullptr) {
-          Stats::increment(Stats::configuration_type::nb_steals);
-          break;
+        if (! deques[k].empty()) {
+          termination_barrier.set_active(true);
+          current = deques[k].steal();
+          if (current == nullptr) {
+            termination_barrier.set_active(false);
+          } else {
+            Stats::increment(Stats::configuration_type::nb_steals);
+          }
         }
-        if (my_nb_running_workers.decrement()) {
+        if (termination_barrier.is_terminated()) {
           Stats::on_exit_acquire(sa);
           return scheduler_status_finished;
         }
@@ -294,10 +294,10 @@ public:
 
     Scheduler_configuration::initialize_signal_handler(ping_thread_status);
 
-    nb_running_workers[0].increment();
+    termination_barrier.set_active(true);
     for (std::size_t i = 1; i < nb_workers; i++) {
-      nb_running_workers[i].increment();
       auto t = std::thread([&] {
+        termination_barrier.set_active(true);
         worker_loop();
       });
       pthreads[i] = t.native_handle();

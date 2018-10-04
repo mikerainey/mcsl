@@ -137,14 +137,15 @@ public:
 using fiber_status_type = enum fiber_status_enum {
   fiber_status_continue,
   fiber_status_pause,
-  fiber_status_finished
+  fiber_status_finish,
+  fiber_status_terminate
 };
 
 using ping_thread_status_type = enum ping_thread_status_enum {
   ping_thread_status_active,
-  ping_thread_status_terminated,
-  ping_thread_status_finished,
-  ping_thread_status_disabled
+  ping_thread_status_terminate,
+  ping_thread_status_finish,
+  ping_thread_status_disable
 };
 
 template <typename Scheduler_configuration,
@@ -180,6 +181,7 @@ public:
 
   static
   void launch(std::size_t nb_workers) {
+    bool should_terminate = false;
     snzi_termination_detection_barrier<> termination_barrier;
     
     std::size_t nb_workers_exited = 0;
@@ -192,7 +194,7 @@ public:
 
     using scheduler_status_type = enum scheduler_status_enum {
       scheduler_status_active,
-      scheduler_status_finished
+      scheduler_status_finish
     };
 
     auto flush = [&] {
@@ -216,7 +218,7 @@ public:
     auto acquire = [&] {
       if (nb_workers == 1) {
         termination_barrier.set_active(false);
-        return scheduler_status_finished;
+        return scheduler_status_finish;
       }
       auto sa = Stats::on_enter_acquire();
       termination_barrier.set_active(false);
@@ -234,9 +236,10 @@ public:
             Stats::increment(Stats::configuration_type::nb_steals);
           }
         }
-        if (termination_barrier.is_terminated()) {
+        if (termination_barrier.is_terminated() || should_terminate) {
+          assert(current == nullptr);
           Stats::on_exit_acquire(sa);
-          return scheduler_status_finished;
+          return scheduler_status_finish;
         }
       }
       assert(current != nullptr);
@@ -260,9 +263,12 @@ public:
               buffers.mine().push_back(current);
             } else if (s == fiber_status_pause) {
               // do nothing
-            } else {
-              assert(s == fiber_status_finished);
+            } else if (s == fiber_status_finish) {
               delete current;
+            } else {
+              assert(s == fiber_status_terminate);
+              status = scheduler_status_finish;
+              should_terminate = true;
             }
             current = flush();
           }
@@ -270,12 +276,12 @@ public:
         assert((current == nullptr) && my_deque.empty());
         status = acquire();
       }
-      if (ping_thread_status != ping_thread_status_disabled) {
+      if (ping_thread_status != ping_thread_status_disable) {
         std::unique_lock<std::mutex> lk(ping_thread_lock);
         if (ping_thread_status == ping_thread_status_active) {
-          ping_thread_status = ping_thread_status_terminated;
+          ping_thread_status = ping_thread_status_terminate;
         }
-        ping_thread_condition_variable.wait(lk, [&] { return ping_thread_status == ping_thread_status_finished; });
+        ping_thread_condition_variable.wait(lk, [&] { return ping_thread_status == ping_thread_status_finish; });
       }
       {
         std::unique_lock<std::mutex> lk(exit_lock);

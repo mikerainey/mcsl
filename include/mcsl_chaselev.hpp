@@ -176,8 +176,35 @@ private:
 
   static
   perworker::array<pthread_t> pthreads;
-  
+
+  static
+  fiber_type* flush() {
+    auto& my_buffer = buffers.mine();
+    auto& my_deque = deques.mine();
+    fiber_type* current = nullptr;
+    if (my_buffer.empty()) {
+      return current;
+    }
+    current = my_buffer.back();
+    my_buffer.pop_back();
+    while (! my_buffer.empty()) {
+      auto f = my_buffer.front();
+      my_buffer.pop_front();
+      my_deque.push(f);
+    }
+    assert(current != nullptr);
+    return current;
+  }
+
 public:
+
+  static
+  void commit() {
+    auto f = flush();
+    if (f != nullptr) {
+      deques.mine().push(f);
+    }
+  }
 
   static
   void launch(std::size_t nb_workers) {
@@ -195,24 +222,6 @@ public:
     using scheduler_status_type = enum scheduler_status_enum {
       scheduler_status_active,
       scheduler_status_finish
-    };
-
-    auto flush = [&] {
-      auto& my_buffer = buffers.mine();
-      auto& my_deque = deques.mine();
-      fiber_type* current = nullptr;
-      if (my_buffer.empty()) {
-        return current;
-      }
-      current = my_buffer.back();
-      my_buffer.pop_back();
-      while (! my_buffer.empty()) {
-        auto f = my_buffer.front();
-        my_buffer.pop_front();
-        my_deque.push(f);
-      }
-      assert(current != nullptr);
-      return current;
     };
 
     auto acquire = [&] {
@@ -347,6 +356,13 @@ template <typename Scheduler_configuration,
 	  typename Stats>
 void schedule(Fiber<Scheduler_configuration>* f) {
   chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats>::schedule(f);  
+}
+
+template <typename Scheduler_configuration,
+	  template <typename> typename Fiber,
+	  typename Stats>
+void commit() {
+  chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats>::commit();
 }
 
 } // end namespace

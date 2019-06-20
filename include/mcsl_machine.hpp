@@ -71,13 +71,12 @@ perworker::array<hwloc_coordinate_type> worker_hwloc_coordinates;
 perworker::array<hwloc_cpuset_t> hwloc_cpusets;
   
 hwloc_topology_t topology;
+hwloc_cpuset_t all_cpus;
 
 void hwloc_assign_cpusets(std::size_t nb_workers,
                           resource_packing_type resource_packing,
                           resource_binding_type resource_binding) {
-  hwloc_cpuset_t all_cpus =
-    hwloc_bitmap_dup (hwloc_topology_get_topology_cpuset(topology));
-  
+  all_cpus = hwloc_bitmap_dup(hwloc_topology_get_topology_cpuset(topology));
   std::vector<std::size_t> max_nb_workers_by_resource;
   std::vector<hwloc_coordinate_type> resource_ids;
   if (resource_binding == resource_binding_by_core) {
@@ -146,8 +145,8 @@ void pin_calling_worker() {
 
 void initialize_hwloc(std::size_t nb_workers, bool& numa_alloc_interleaved) {
 #ifdef MCSL_HAVE_HWLOC
-  hwloc_topology_init (&topology);
-  hwloc_topology_load (topology);
+  hwloc_topology_init(&topology);
+  hwloc_topology_load(topology);
   if (numa_alloc_interleaved) {
     hwloc_cpuset_t all_cpus =
       hwloc_bitmap_dup(hwloc_topology_get_topology_cpuset(topology));
@@ -163,8 +162,12 @@ void initialize_hwloc(std::size_t nb_workers, bool& numa_alloc_interleaved) {
 #endif
 }
 
-void destroy_hwloc() {
+void destroy_hwloc(std::size_t nb_workers) {
 #ifdef MCSL_HAVE_HWLOC
+  hwloc_bitmap_free(all_cpus);
+  for (std::size_t worker_id = 0; worker_id != nb_workers; ++worker_id) {
+    hwloc_bitmap_free(hwloc_cpusets[worker_id]);
+  }
   hwloc_topology_destroy(topology);
 #endif
 }

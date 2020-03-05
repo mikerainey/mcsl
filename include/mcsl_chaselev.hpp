@@ -1,17 +1,14 @@
+#pragma once
+
 #include <memory>
 #include <assert.h>
 #include <deque>
 #include <thread>
 #include <condition_variable>
 
-#include "mcsl_atomic.hpp"
 #include "mcsl_aligned.hpp"
-#include "mcsl_random.hpp"
 #include "mcsl_stats.hpp"
 #include "mcsl_snzi.hpp"
-
-#ifndef _MCSL_CHASELEV_H_
-#define _MCSL_CHASELEV_H_
 
 namespace mcsl {
   
@@ -160,6 +157,8 @@ private:
 
   using buffer_type = std::deque<fiber_type*>;
 
+  using random_number_seed_type = uint64_t;
+
   static
   perworker::array<cl_deque_type> deques;
 
@@ -167,11 +166,19 @@ private:
   perworker::array<buffer_type> buffers;
 
   static
-  perworker::array<std::mt19937> random_number_generators;
+  perworker::array<random_number_seed_type> random_number_generators;
 
   static
   std::size_t random_other_worker(size_t my_id) {
-    return random::other_worker(my_id, random_number_generators);
+    auto nb_workers = perworker::unique_id::get_nb_workers();
+    assert(nb_workers != 1);
+    auto& rn = random_number_generators.mine();
+    auto id = (std::size_t)(rn % (nb_workers - 1));
+    if (id >= my_id) {
+      id++;
+    }
+    rn = hash(rn);
+    return id;
   }
 
   static
@@ -304,7 +311,7 @@ public:
     };
 
     for (std::size_t i = 0; i < random_number_generators.size(); ++i) {
-      random_number_generators[i].seed(i);
+      random_number_generators[i] = hash(i);
     }
 
     Scheduler_configuration::initialize_signal_handler(ping_thread_status);
@@ -344,7 +351,7 @@ perworker::array<typename chase_lev_work_stealing_scheduler<Scheduler_configurat
 template <typename Scheduler_configuration,
 	template <typename> typename Fiber,
 	typename Stats>
-perworker::array<std::mt19937> chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats>::random_number_generators;
+perworker::array<random_number_seed_type> chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats>::random_number_generators;
 
 template <typename Scheduler_configuration,
 	  template <typename> typename Fiber,
@@ -367,4 +374,3 @@ void commit() {
 
 } // end namespace
 
-#endif /*! _MCSL_CHASELEV_H_ */

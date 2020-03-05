@@ -1,12 +1,11 @@
+#pragma once
+
 #include <new>
 
 #include "mcsl_aligned.hpp"
-#include "mcsl_tagged.hpp"
-#include "mcsl_atomic.hpp"
+#include "mcsl_util.hpp"
 #include "mcsl_perworker.hpp"
-
-#ifndef _MCSL_SNZI_H_
-#define _MCSL_SNZI_H_
+#include "mcsl_tagged.hpp"
 
 namespace mcsl {
   
@@ -257,5 +256,3 @@ public:
 };
 
 } // end namespace
-
-#endif /*! _MCSL_SNZI_H_ */

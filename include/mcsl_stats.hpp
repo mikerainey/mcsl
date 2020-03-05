@@ -1,11 +1,10 @@
+#pragma once
+
 #include <chrono>
 #include <map>
 #include <iostream>
 
 #include "mcsl_perworker.hpp"
-
-#ifndef _MCSL_STATS_H_
-#define _MCSL_STATS_H_
 
 namespace mcsl {
 
@@ -122,4 +121,3 @@ perworker::array<double> stats_base<Configuration>::all_total_idle_time;
 
 } // end namespace
 
-#endif /*! _MCSL_STATS_H_ */

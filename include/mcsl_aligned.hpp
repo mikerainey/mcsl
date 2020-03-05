@@ -1,10 +1,9 @@
+#pragma once
+
 #include <type_traits>
 #include <cstdlib>
 #include <assert.h>
 #include <memory>
-
-#ifndef _MCSL_ALIGNED_H_
-#define _MCSL_ALIGNED_H_
 
 #ifndef MCSL_CACHE_LINE_SZB
 #define MCSL_CACHE_LINE_SZB 128
@@ -169,4 +168,3 @@ public:
 
 #undef MCSL_CACHE_LINE_SZB
 
-#endif /*! _MCSL_ALIGNED_H_ */

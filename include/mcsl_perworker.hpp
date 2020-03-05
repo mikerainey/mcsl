@@ -1,9 +1,8 @@
+#pragma once
+
 #include <atomic>
 
 #include "mcsl_aligned.hpp"
-
-#ifndef _MCSL_PERWORKER_H_
-#define _MCSL_PERWORKER_H_
 
 #ifndef MCSL_MAX_NB_WORKERS_LG
 #define MCSL_MAX_NB_WORKERS_LG 7
@@ -110,5 +109,3 @@ public:
   
 } // end namespace
 } // end namespace
-
-#endif /*! _MCSL_PERWORKER_H_ */

@@ -1,2 +1,2 @@
 # multicore-sched-lib
-A small C++ library containing various algorithms and data structures that are used by load-balancing schedulers for green threads
+A small C++ library of algorithms and data structures that are useful for implementing efficient, task-parallel scheduling.

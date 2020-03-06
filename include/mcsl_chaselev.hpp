@@ -145,6 +145,8 @@ using ping_thread_status_type = enum ping_thread_status_enum {
   ping_thread_status_disable
 };
 
+using random_number_seed_type = uint64_t;
+
 template <typename Scheduler_configuration,
 	  template <typename> typename Fiber,
 	  typename Stats>
@@ -156,8 +158,6 @@ private:
   using cl_deque_type = chaselev_deque<fiber_type>;
 
   using buffer_type = std::deque<fiber_type*>;
-
-  using random_number_seed_type = uint64_t;
 
   static
   perworker::array<cl_deque_type> deques;

@@ -31,14 +31,14 @@ void snzi_increment(Snzi_Node& node) {
       auto next = x;
       next.c++;
       next.v++;
-      succ = atomic::compare_exchange(X, orig, next);
+      succ = compare_exchange(X, orig, next);
     }
     if (x.c == 0) {
       auto orig = x;
       auto next = x;
       next.c = snzi_one_half;
       next.v++;
-      if (atomic::compare_exchange(X, orig, next)) {
+      if (compare_exchange(X, orig, next)) {
         succ = true;
         x.c = snzi_one_half;
         x.v++;
@@ -51,7 +51,7 @@ void snzi_increment(Snzi_Node& node) {
       auto orig = x;
       auto next = x;
       next.c = 1;
-      if (! atomic::compare_exchange(X, orig, next)) {
+      if (! compare_exchange(X, orig, next)) {
         undo_arr++;
       }
     }
@@ -75,7 +75,7 @@ bool snzi_decrement(Snzi_Node& node) {
     auto orig = x;
     auto next = x;
     next.c--;
-    if (atomic::compare_exchange(X, orig, next)) {
+    if (compare_exchange(X, orig, next)) {
       bool s = (x.c == 1);
       if (Snzi_Node::is_root_node(parent)) {
         return s;

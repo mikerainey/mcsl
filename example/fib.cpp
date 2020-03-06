@@ -19,7 +19,7 @@ public:
 #endif
 
   using counter_id_type = enum counter_id_enum {
-    nb_promotions,
+    nb_fibers,
     nb_steals,
     nb_counters
   };
@@ -27,7 +27,7 @@ public:
   static
   const char* name_of_counter(counter_id_type id) {
     std::map<counter_id_type, const char*> names;
-    names[nb_promotions] = "nb_promotions";
+    names[nb_fibers] = "nb_fibers";
     names[nb_steals] = "nb_steals";
     return names[id];
   }
@@ -101,8 +101,8 @@ public:
       mcsl::fiber<Scheduler_configuration>::add_edge(f2, this);
       f1->release();
       f2->release();
-      stats::increment(stats_configuration::nb_promotions);
-      stats::increment(stats_configuration::nb_promotions);
+      stats::increment(stats_configuration::nb_fibers);
+      stats::increment(stats_configuration::nb_fibers);
       trampoline = exit;
       return mcsl::fiber_status_pause;	  
     }

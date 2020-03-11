@@ -88,11 +88,6 @@ context::context_pointer my_ctx() {
 /*---------------------------------------------------------------------*/
 /* Native fork join */
 
-bool try_pop_fiber() {
-  assert(false);
-  return false;
-}
-
 class forkable_fiber {
 public:
 
@@ -184,10 +179,10 @@ public:
     fjnative* f1 = (fjnative*)_f1;
     fjnative* f2 = (fjnative*)_f2;
     status = fiber_status_pause;
-    add_edge(f1, this);
     add_edge(f2, this);
-    f1->release();
+    add_edge(f1, this);
     f2->release();
+    f1->release();
     if (context::capture<fjnative*>(context::addr(ctx))) {
       //      util::atomic::aprintf("steal happened: executing join continuation\n");
       return;
@@ -199,7 +194,9 @@ public:
     // run begin of sched->exec(f1) until f1->exec()
     f1->run();
     // if f2 was not stolen, then it can run in the same stack as parent
-    if (try_pop_fiber()) {
+    auto f = basic_scheduler_configuration::flush<fiber>();
+    if (f != nullptr) {
+      assert(f == f2);
       //      util::atomic::aprintf("%d %d detected steal of %p\n",id,util::worker::get_my_id(),f2);
       exit_to_scheduler();
       return; // unreachable

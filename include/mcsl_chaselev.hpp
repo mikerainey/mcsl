@@ -184,34 +184,7 @@ private:
   static
   perworker::array<pthread_t> pthreads;
 
-  static
-  fiber_type* flush() {
-    auto& my_buffer = buffers.mine();
-    auto& my_deque = deques.mine();
-    fiber_type* current = nullptr;
-    if (my_buffer.empty()) {
-      return current;
-    }
-    current = my_buffer.back();
-    my_buffer.pop_back();
-    while (! my_buffer.empty()) {
-      auto f = my_buffer.front();
-      my_buffer.pop_front();
-      my_deque.push(f);
-    }
-    assert(current != nullptr);
-    return current;
-  }
-
 public:
-
-  static
-  void commit() {
-    auto f = flush();
-    if (f != nullptr) {
-      deques.mine().push(f);
-    }
-  }
 
   static
   void launch(std::size_t nb_workers) {
@@ -331,11 +304,38 @@ public:
   }
 
   static
+  fiber_type* flush() {
+    auto& my_buffer = buffers.mine();
+    auto& my_deque = deques.mine();
+    fiber_type* current = nullptr;
+    if (my_buffer.empty()) {
+      return current;
+    }
+    current = my_buffer.back();
+    my_buffer.pop_back();
+    while (! my_buffer.empty()) {
+      auto f = my_buffer.front();
+      my_buffer.pop_front();
+      my_deque.push(f);
+    }
+    assert(current != nullptr);
+    return current;
+  }
+  
+  static
   void schedule(fiber_type* f) {
     assert(f->is_ready());
     buffers.mine().push_back(f);
   }
-  
+
+  static
+  void commit() {
+    auto f = flush();
+    if (f != nullptr) {
+      deques.mine().push(f);
+    }
+  }
+
 };
 
 template <typename Scheduler_configuration,
@@ -357,6 +357,13 @@ template <typename Scheduler_configuration,
 	  template <typename> typename Fiber,
 	  typename Stats>
 perworker::array<pthread_t> chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats>::pthreads;
+
+template <typename Scheduler_configuration,
+	  template <typename> typename Fiber,
+	  typename Stats>
+Fiber<Scheduler_configuration>* flush() {
+  return chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats>::flush();  
+}
 
 template <typename Scheduler_configuration,
 	  template <typename> typename Fiber,
@@ -431,6 +438,12 @@ public:
   static
   void schedule(Fiber<basic_scheduler_configuration>* f) {
     mcsl::schedule<basic_scheduler_configuration, Fiber, basic_stats>(f);
+  }
+
+  template <template <typename> typename Fiber>
+  static
+  Fiber<basic_scheduler_configuration>* flush() {
+    return mcsl::flush<basic_scheduler_configuration, Fiber, basic_stats>();
   }
 
 };

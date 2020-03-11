@@ -74,7 +74,7 @@ public:
 
 class context_wrapper_type {
 public:
-  util::control::context::context_type ctx;
+  context::context_type ctx;
 };
 
 static
@@ -108,8 +108,7 @@ template <typename F>
 class fjnative : public fiber<basic_scheduler_configuration>, public forkable_fiber {
 public:
 
-  using context_type = uctx::context::context_type;
-  using context = uctx::context;
+  using context_type = context::context_type;
 
   // declaration of dummy-pointer constants
   static
@@ -170,7 +169,7 @@ public:
   }
 
   fjnative(const F& f)
-    : thread(), f(f)  { }
+    : fiber(), f(f)  { }
 
   ~fjnative() {
     if ((stack == nullptr) || (stack == notownstackptr)) {
@@ -181,14 +180,14 @@ public:
     free(s);
   }
 
-  void fork2(fjnative* f1, fjnative* f2) {
+  void fork2(forkable_fiber* _f1, forkable_fiber* _f2) {
+    fjnative* f1 = (fjnative*)_f1;
+    fjnative* f2 = (fjnative*)_f2;
     status = fiber_status_pause;
     add_edge(f1, this);
     add_edge(f2, this);
     f1->release();
     f2->release();
-    stats::increment(stats_configuration::nb_fibers);
-    stats::increment(stats_configuration::nb_fibers);
     if (context::capture<fjnative*>(context::addr(ctx))) {
       //      util::atomic::aprintf("steal happened: executing join continuation\n");
       return;

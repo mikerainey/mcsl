@@ -2,7 +2,7 @@
 #include <chrono>
 #include <ctime>
 
-#include "mcsl_fiber.hpp"
+#include "mcsl_fjnative.hpp"
 
 int64_t fib_seq(int64_t n) {
   if (n <= 1) {
@@ -56,17 +56,41 @@ public:
 
 };
 
+int64_t fib_fjnative(int64_t n) {
+  if (n <= 1) {
+    return n;
+  } else {
+    int64_t r1, r2;
+    mcsl::fork2([&] {
+      r1 = fib_fjnative(n-1);
+    }, [&] {
+      r2 = fib_fjnative(n-2);
+    });
+    return r1 + r2;
+  }
+}
+
 int main() {
-  std::size_t nb_workers = 4;
+  std::size_t nb_workers = 1;
   int64_t n = 30;
   int64_t dst = 0;
+
+  mcsl::basic_stats::on_enter_launch();
+
+  auto f = [&] {
+    dst = fib_fjnative(n);
+  };             
+  auto f_body = mcsl::new_fjnative_of_function(f);
+  /*
   auto f_body = new fib_fiber<mcsl::basic_scheduler_configuration>(n, &dst);
+  */
   f_body->release();
   using scheduler_type = mcsl::chase_lev_work_stealing_scheduler<mcsl::basic_scheduler_configuration, mcsl::fiber, mcsl::basic_stats>;
-  mcsl::basic_stats::on_enter_launch();
+
   auto start_time = std::chrono::system_clock::now();
   scheduler_type::launch(nb_workers);
   auto end_time = std::chrono::system_clock::now();
+  
   mcsl::basic_stats::on_exit_launch();
   {
     assert(fib_seq(n) == dst);

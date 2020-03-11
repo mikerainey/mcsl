@@ -146,7 +146,7 @@ using ping_thread_status_type = enum ping_thread_status_enum {
 };
 
 using random_number_seed_type = uint64_t;
-
+  
 template <typename Scheduler_configuration,
 	  template <typename> typename Fiber,
 	  typename Stats>
@@ -274,7 +274,7 @@ public:
         while ((current != nullptr) || ! my_deque.empty()) {
           current = (current == nullptr) ? my_deque.pop() : current;
           if (current != nullptr) {
-            auto s = current->run();
+            auto s = current->exec();
             if (s == fiber_status_continue) {
               buffers.mine().push_back(current);
             } else if (s == fiber_status_pause) {
@@ -372,5 +372,68 @@ void commit() {
   chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats>::commit();
 }
 
+/*---------------------------------------------------------------------*/
+/* Basic stats */
+
+class basic_stats_configuration {
+public:
+
+#ifdef MCSL_ENABLE_STATS
+  static constexpr
+  bool enabled = true;
+#else
+  static constexpr
+  bool enabled = false;
+#endif
+
+  using counter_id_type = enum counter_id_enum {
+    nb_fibers,
+    nb_steals,
+    nb_counters
+  };
+
+  static
+  const char* name_of_counter(counter_id_type id) {
+    std::map<counter_id_type, const char*> names;
+    names[nb_fibers] = "nb_fibers";
+    names[nb_steals] = "nb_steals";
+    return names[id];
+  }
+  
+};
+
+using basic_stats = stats_base<basic_stats_configuration>;
+
+/*---------------------------------------------------------------------*/
+/* Basic scheduler configuration */
+
+class basic_scheduler_configuration {
+public:
+  
+  static
+  void initialize_worker() {
+  }  
+
+  static
+  void initialize_signal_handler(ping_thread_status_type& status) {
+    status = ping_thread_status_disable;
+  }
+  
+  static
+  void launch_ping_thread(std::size_t, perworker::array<pthread_t>&,
+                          ping_thread_status_type&,
+                          std::mutex&,
+                          std::condition_variable&) {
+  }
+
+
+  template <template <typename> typename Fiber>
+  static
+  void schedule(Fiber<basic_scheduler_configuration>* f) {
+    mcsl::schedule<basic_scheduler_configuration, Fiber, basic_stats>(f);
+  }
+
+};
+  
 } // end namespace
 

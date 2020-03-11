@@ -32,6 +32,11 @@ public:
   virtual
   fiber_status_type run() = 0;
 
+  virtual
+  fiber_status_type exec() {
+    return run();
+  }
+
   bool is_ready() {
     return incounter.load() == 0;
   }

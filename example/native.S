@@ -13,11 +13,11 @@
         .file "native.S"
         .text
 
-        /* _mcsl_cxt_save(__jmp_buf env) */
-.globl _mcsl_cxt_save
-        .type _mcsl_cxt_save, @function
+        /* _mcsl_ctx_save(__jmp_buf env) */
+.globl _mcsl_ctx_save
+        .type _mcsl_ctx_save, @function
         .align 16
-_mcsl_cxt_save:
+_mcsl_ctx_save:
         /*
          * Save registers.
          */
@@ -35,16 +35,16 @@ _mcsl_cxt_save:
         movq %rax, (JB_PC*8)(%rdi)
         xorq %rax, %rax
         ret
-        .size _mcsl_cxt_save, .-_mcsl_cxt_save
+        .size _mcsl_ctx_save, .-_mcsl_ctx_save
 
 
 /****************************************************************/
 
-        /* _mcsl_cxt_restore(__jmp_buf env, void* val) */
-.globl _mcsl_cxt_restore
-        .type _mcsl_cxt_restore, @function
+        /* _mcsl_ctx_restore(__jmp_buf env, void* val) */
+.globl _mcsl_ctx_restore
+        .type _mcsl_ctx_restore, @function
         .align 16
-_mcsl_cxt_restore:
+_mcsl_ctx_restore:
         /*
          * Restore registers.
          */
@@ -63,4 +63,4 @@ _mcsl_cxt_restore:
         movq (JB_RSP*8)(%rdi), %rsp
         /* Jump to saved PC */
         jmpq *%rdx
-        .size _mcsl_cxt_restore, .-_mcsl_cxt_restore
+        .size _mcsl_ctx_restore, .-_mcsl_ctx_restore

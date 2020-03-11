@@ -2,13 +2,16 @@
 
 #include "mcsl_fiber.hpp"
 
+/*---------------------------------------------------------------------*/
+/* Context switching */
+
 using _context_pointer = char*;
 
 extern "C"
-void* _mcsl_cxt_save(_context_pointer cxt);
+void* _mcsl_ctx_save(_context_pointer ctx);
 
 extern "C"
-void _mcsl_cxt_restore(_context_pointer cxt, void* t);
+void _mcsl_ctx_restore(_context_pointer ctx, void* t);
 
 static constexpr
 int thread_stack_szb = 1<<20;
@@ -30,17 +33,17 @@ public:
   
   template <class Value>
   static
-  void throw_to(context_pointer cxt, Value val) {
-    _mcsl_cxt_restore(cxt, (void*)val);
+  void throw_to(context_pointer ctx, Value val) {
+    _mcsl_ctx_restore(ctx, (void*)val);
   }
   
   template <class Value>
   static
-  void swap(context_pointer cxt1, context_pointer cxt2, Value val2) {
-    if (_mcsl_cxt_save(cxt1)) {
+  void swap(context_pointer ctx1, context_pointer ctx2, Value val2) {
+    if (_mcsl_ctx_save(ctx1)) {
       return;
     }
-    _mcsl_cxt_restore(cxt2, val2);
+    _mcsl_ctx_restore(ctx2, val2);
   }
   
   // register number 6
@@ -48,22 +51,22 @@ public:
   
   template <class Value>
   static
-  Value capture(context_pointer cxt) {
-    void* r = _mcsl_cxt_save(cxt);
+  Value capture(context_pointer ctx) {
+    void* r = _mcsl_ctx_save(ctx);
     return (Value)r;
   }
   
   template <class Value>
   static
-  char* spawn(context_pointer cxt, Value val) {
+  char* spawn(context_pointer ctx, Value val) {
     Value target;
-    if (target = (Value)_mcsl_cxt_save(cxt)) {
+    if (target = (Value)_mcsl_ctx_save(ctx)) {
       target->enter(target);
       assert(false);
     }
     char* stack = (char*)malloc(thread_stack_szb);
-    void** _cxt = (void**)cxt;
-    _cxt[_X86_64_SP_OFFSET] = &stack[thread_stack_szb];
+    void** _ctx = (void**)ctx;
+    _ctx[_X86_64_SP_OFFSET] = &stack[thread_stack_szb];
     return stack;
   }
   
@@ -71,27 +74,47 @@ public:
 
 class context_wrapper_type {
 public:
-  util::control::context::context_type cxt;
+  util::control::context::context_type ctx;
 };
 
 static
-perworker::array<context_wrapper_type> cxts;
+perworker::array<context_wrapper_type> ctxs;
 
 static
-context::context_pointer my_cxt() {
-  return context::addr(cxts.mine().cxt);
+context::context_pointer my_ctx() {
+  return context::addr(ctxs.mine().ctx);
 }
 
-template <typename Scheduler_config>
-class fjnative : public fiber<Scheduler_config> {
+/*---------------------------------------------------------------------*/
+/* Native fork join */
+
+bool try_pop_fiber() {
+  assert(false);
+  return false;
+}
+
+class forkable_fiber {
 public:
 
-  using context_type = ucxt::context::context_type;
-  using context = ucxt::context;
+  virtual
+  void fork2(forkable_fiber*, forkable_fiber*) = 0;
+
+};
+
+static
+perworker::array<forkable_fiber*> fibers;
+
+template <typename F>
+class fjnative : public fiber<basic_scheduler_configuration>, public forkable_fiber {
+public:
+
+  using context_type = uctx::context::context_type;
+  using context = uctx::context;
 
   // declaration of dummy-pointer constants
   static
   char dummy1, dummy2;
+  
   static constexpr
   char* notaptr = &dummy1;
   /* indicates to a thread that the thread does not need to deallocate
@@ -100,41 +123,45 @@ public:
   static constexpr
   char* notownstackptr = &dummy2;
 
+  fiber_status_type status = fiber_status_finish;
+
+  F f;
+
   // pointer to the call stack of this thread
-  char* stack;
+  char* stack = nullptr;
   // CPU context of this thread
-  context_type cxt;
+  context_type ctx;
 
   void swap_with_scheduler() {
-    context::swap(context::addr(cxt), my_cxt(), notaptr);
+    context::swap(context::addr(ctx), my_ctx(), notaptr);
   }
 
-  static void exit_to_scheduler() {
-    context::throw_to(my_cxt(), notaptr);
+  static
+  void exit_to_scheduler() {
+    context::throw_to(my_ctx(), notaptr);
   }
 
-  void prepare() {
-    threaddag::reuse_calling_thread();
-  }
-
-  void prepare_and_swap_with_scheduler() {
-    prepare();
-    swap_with_scheduler();
+  fiber_status_type run() {
+    fibers.mine() = this;
+    f();
+    return status;
   }
 
   // point of entry from the scheduler to the body of this thread
   // the scheduler may reenter this fiber via this method
-  void exec() {
+  fiber_status_type exec() {
     if (stack == nullptr) {
       // initial entry by the scheduler into the body of this thread
-      stack = context::spawn(context::addr(cxt), this);
+      stack = context::spawn(context::addr(ctx), this);
     }
     // jump into body of this thread
-    context::swap(my_cxt(), context::addr(cxt), this);
+    context::swap(my_ctx(), context::addr(ctx), this);
+    return status;
   }
 
   // point of entry to this thread to be called by the `context::spawn` routine
-  static void enter(fjnative* t) {
+  static
+  void enter(fjnative* t) {
     assert(t != nullptr);
     assert(t != (fjnative*)notaptr);
     t->run();
@@ -142,59 +169,75 @@ public:
     exit_to_scheduler();
   }
 
-public:
-
-  fjnative()
-  : thread(), stack(nullptr)  { }
+  fjnative(const F& f)
+    : thread(), f(f)  { }
 
   ~fjnative() {
-    if (stack == nullptr) {
+    if ((stack == nullptr) || (stack == notownstackptr)) {
       return;
     }
-    if (stack == notownstackptr) {
-      return;
-    }
-    free(stack);
+    auto s = stack;
     stack = nullptr;
+    free(s);
   }
 
-  void fork2(fjnative* f0, fjnative* f1) {
-    prepare();
-    threaddag::binary_fork_join(thread0, thread1, this);
-    if (context::capture<fjnative*>(context::addr(cxt))) {
+  void fork2(fjnative* f1, fjnative* f2) {
+    status = fiber_status_pause;
+    add_edge(f1, this);
+    add_edge(f2, this);
+    f1->release();
+    f2->release();
+    stats::increment(stats_configuration::nb_fibers);
+    stats::increment(stats_configuration::nb_fibers);
+    if (context::capture<fjnative*>(context::addr(ctx))) {
       //      util::atomic::aprintf("steal happened: executing join continuation\n");
       return;
     }
-    // know f0 stays on my stack
-    f0->stack = notownstackptr;
-    f0->swap_with_scheduler();
-    // sched is popping f0
-    // run begin of sched->exec(f0) until f0->exec()
-    f0->run();
-    // if f1 was not stolen, then it can run in the same stack as parent
-    if (! sched->local_has() || sched->local_peek() != f1) {
-      //      util::atomic::aprintf("%d %d detected steal of %p\n",id,util::worker::get_my_id(),f1);
+    // know f1 stays on my stack
+    f1->stack = notownstackptr;
+    f1->swap_with_scheduler();
+    // sched is popping f1
+    // run begin of sched->exec(f1) until f1->exec()
+    f1->run();
+    // if f2 was not stolen, then it can run in the same stack as parent
+    if (try_pop_fiber()) {
+      //      util::atomic::aprintf("%d %d detected steal of %p\n",id,util::worker::get_my_id(),f2);
       exit_to_scheduler();
       return; // unreachable
     }
-    //    util::atomic::aprintf("%d %d ran %p; going to run f %p\n",id,util::worker::get_my_id(),f0,f1);
-    // prepare f1 for local run
-    assert(f1->stack == nullptr);
-    f1->stack = notownstackptr;
-    f1->swap_with_scheduler();
-    //    util::atomic::aprintf("%d %d this=%p f0=%p f1=%p\n",id,util::worker::get_my_id(),this, f0, f1);
-    //    printf("ran %p and %p locally\n",f0,f1);
-    // run end of sched->exec() starting after f0->exec()
-    // run begin of sched->exec(f1) until f1->exec()
-    f1->run();
-    swap_with_scheduler();
+    //    util::atomic::aprintf("%d %d ran %p; going to run f %p\n",id,util::worker::get_my_id(),f1,f2);
+    // prepare f2 for local run
+    assert(f2->stack == nullptr);
+    f2->stack = notownstackptr;
+    f2->swap_with_scheduler();
+    //    util::atomic::aprintf("%d %d this=%p f1=%p f2=%p\n",id,util::worker::get_my_id(),this, f1, f2);
+    //    printf("ran %p and %p locally\n",f1,f2);
     // run end of sched->exec() starting after f1->exec()
+    // run begin of sched->exec(f2) until f2->exec()
+    f2->run();
+    swap_with_scheduler();
+    // run end of sched->exec() starting after f2->exec()
   }
 
 };
 
-char fjnative::dummy1;
-char fjnative::dummy2;
+template <typename F>
+char fjnative<F>::dummy1;
+template <typename F>
+char fjnative<F>::dummy2;
 
+template <class F>
+fjnative<F>* new_fjnative_of_function(const F& f) {
+  return new fjnative<F>(f);
+}
 
+template <class F1, class F2>
+void fork2(const F1& f1, const F2& f2) {
+#if defined(MCSL_SEQUENTIAL_ELISION)
+  f1(); f2();
+#else
+  fibers.mine()->fork2(new_fjnative_of_function(f1), new_fjnative_of_function(f2));
+#endif
+}
+  
 } // end namespace

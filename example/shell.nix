@@ -1,8 +1,8 @@
 { pkgs   ? import <nixpkgs> {},
   stdenv ? pkgs.stdenv,
-  gcc ? pkgs.gcc7,
+  gcc ? pkgs.gcc,
   hwloc ? pkgs.hwloc,
-  jemalloc ? pkgs.jemalloc # use jemalloc, unless this parameter equals null
+  jemalloc ? pkgs.jemalloc450 # use jemalloc, unless this parameter equals null (for now, use v4.5.0, because 5.1.0 has a deadlock bug)
 }:
 
 stdenv.mkDerivation rec {

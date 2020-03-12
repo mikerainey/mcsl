@@ -184,6 +184,25 @@ private:
   static
   perworker::array<pthread_t> pthreads;
 
+  static
+  fiber_type* flush() {
+    auto& my_buffer = buffers.mine();
+    auto& my_deque = deques.mine();
+    fiber_type* current = nullptr;
+    if (my_buffer.empty()) {
+      return current;
+    }
+    current = my_buffer.back();
+    my_buffer.pop_back();
+    while (! my_buffer.empty()) {
+      auto f = my_buffer.front();
+      my_buffer.pop_front();
+      my_deque.push(f);
+    }
+    assert(my_buffer.empty());
+    return current;
+  }
+  
 public:
 
   static
@@ -304,21 +323,16 @@ public:
   }
 
   static
-  fiber_type* flush() {
+  fiber_type* take() {
     auto& my_buffer = buffers.mine();
     auto& my_deque = deques.mine();
     fiber_type* current = nullptr;
-    if (my_buffer.empty()) {
+    if (! my_buffer.empty()) {
+      current = my_buffer.back();
       return current;
     }
-    current = my_buffer.back();
-    my_buffer.pop_back();
-    while (! my_buffer.empty()) {
-      auto f = my_buffer.front();
-      my_buffer.pop_front();
-      my_deque.push(f);
-    }
-    assert(current != nullptr);
+    current = my_deque.pop();
+    my_buffer.push_back(current);
     return current;
   }
   
@@ -361,8 +375,8 @@ perworker::array<pthread_t> chase_lev_work_stealing_scheduler<Scheduler_configur
 template <typename Scheduler_configuration,
 	  template <typename> typename Fiber,
 	  typename Stats>
-Fiber<Scheduler_configuration>* flush() {
-  return chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats>::flush();  
+Fiber<Scheduler_configuration>* take() {
+  return chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats>::take();  
 }
 
 template <typename Scheduler_configuration,
@@ -442,8 +456,8 @@ public:
 
   template <template <typename> typename Fiber>
   static
-  Fiber<basic_scheduler_configuration>* flush() {
-    return mcsl::flush<basic_scheduler_configuration, Fiber, basic_stats>();
+  Fiber<basic_scheduler_configuration>* take() {
+    return mcsl::take<basic_scheduler_configuration, Fiber, basic_stats>();
   }
 
 };

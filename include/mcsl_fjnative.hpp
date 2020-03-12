@@ -176,6 +176,8 @@ public:
   }
 
   void fork2(forkable_fiber* _f1, forkable_fiber* _f2) {
+    mcsl::basic_stats::increment(mcsl::basic_stats_configuration::nb_fibers);
+    mcsl::basic_stats::increment(mcsl::basic_stats_configuration::nb_fibers);
     fjnative* f1 = (fjnative*)_f1;
     fjnative* f2 = (fjnative*)_f2;
     status = fiber_status_pause;
@@ -194,15 +196,16 @@ public:
     // run begin of sched->exec(f1) until f1->exec()
     f1->run();
     // if f2 was not stolen, then it can run in the same stack as parent
-    auto f = basic_scheduler_configuration::flush<fiber>();
-    if (f != nullptr) {
-      assert(f == f2);
+    auto f = basic_scheduler_configuration::take<fiber>();
+    if (f == nullptr) {
+      status = fiber_status_finish;
       //      util::atomic::aprintf("%d %d detected steal of %p\n",id,util::worker::get_my_id(),f2);
       exit_to_scheduler();
       return; // unreachable
     }
     //    util::atomic::aprintf("%d %d ran %p; going to run f %p\n",id,util::worker::get_my_id(),f1,f2);
     // prepare f2 for local run
+    assert(f == f2);
     assert(f2->stack == nullptr);
     f2->stack = notownstackptr;
     f2->swap_with_scheduler();
@@ -211,6 +214,7 @@ public:
     // run end of sched->exec() starting after f1->exec()
     // run begin of sched->exec(f2) until f2->exec()
     f2->run();
+    status = fiber_status_finish;
     swap_with_scheduler();
     // run end of sched->exec() starting after f2->exec()
   }
@@ -230,9 +234,13 @@ fjnative<F>* new_fjnative_of_function(const F& f) {
 template <class F1, class F2>
 void fork2(const F1& f1, const F2& f2) {
 #if defined(MCSL_SEQUENTIAL_ELISION)
-  f1(); f2();
+  f1();
+  f2();
 #else
-  fibers.mine()->fork2(new_fjnative_of_function(f1), new_fjnative_of_function(f2));
+  auto f = fibers.mine();
+  auto fp1 = new_fjnative_of_function(f1);
+  auto fp2 = new_fjnative_of_function(f2);
+  f->fork2(fp1, fp2);
 #endif
 }
   

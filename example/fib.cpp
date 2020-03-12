@@ -71,19 +71,19 @@ int64_t fib_fjnative(int64_t n) {
 }
 
 int main() {
-  std::size_t nb_workers = 1;
+  std::size_t nb_workers = 4;
   int64_t n = 30;
   int64_t dst = 0;
 
   mcsl::basic_stats::on_enter_launch();
+  mcsl::fibers.mine() = nullptr;
 
-  auto f = [&] {
+  auto f_body = mcsl::new_fjnative_of_function([&] {
     dst = fib_fjnative(n);
-  };             
-  auto f_body = mcsl::new_fjnative_of_function(f);
-  /*
-  auto f_body = new fib_fiber<mcsl::basic_scheduler_configuration>(n, &dst);
-  */
+  });
+
+  //auto f_body = new fib_fiber<mcsl::basic_scheduler_configuration>(n, &dst);
+
   f_body->release();
   using scheduler_type = mcsl::chase_lev_work_stealing_scheduler<mcsl::basic_scheduler_configuration, mcsl::fiber, mcsl::basic_stats>;
 

@@ -238,6 +238,7 @@ void fork2(const F1& f1, const F2& f2) {
   f2();
 #else
   auto f = fibers.mine();
+  assert(f != nullptr);
   auto fp1 = new_fjnative_of_function(f1);
   auto fp2 = new_fjnative_of_function(f2);
   f->fork2(fp1, fp2);

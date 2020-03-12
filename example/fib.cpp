@@ -76,7 +76,6 @@ int main() {
   int64_t dst = 0;
 
   mcsl::basic_stats::on_enter_launch();
-  mcsl::fibers.mine() = nullptr;
 
   auto f_body = mcsl::new_fjnative_of_function([&] {
     dst = fib_fjnative(n);

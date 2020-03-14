@@ -190,7 +190,7 @@ private:
     auto& my_deque = deques.mine();
     fiber_type* current = nullptr;
     if (my_buffer.empty()) {
-      return current;
+      return nullptr;
     }
     current = my_buffer.back();
     my_buffer.pop_back();
@@ -329,10 +329,13 @@ public:
     fiber_type* current = nullptr;
     if (! my_buffer.empty()) {
       current = my_buffer.back();
+      my_buffer.pop_back();
       return current;
     }
     current = my_deque.pop();
-    my_buffer.push_back(current);
+    if (current != nullptr) {
+      my_buffer.push_back(current);
+    }
     return current;
   }
   

@@ -99,7 +99,6 @@ public:
 static
 perworker::array<forkable_fiber*> fibers;
 
-template <typename F>
 class fjnative : public fiber<basic_scheduler_configuration>, public forkable_fiber {
 public:
 
@@ -119,8 +118,6 @@ public:
 
   fiber_status_type status = fiber_status_finish;
 
-  F f;
-
   // pointer to the call stack of this thread
   char* stack = nullptr;
   // CPU context of this thread
@@ -135,9 +132,11 @@ public:
     context::throw_to(my_ctx(), notaptr);
   }
 
+  virtual
+  void run2() = 0;  
+
   fiber_status_type run() {
-    fibers.mine() = this;
-    f();
+    run2();
     return status;
   }
 
@@ -148,6 +147,7 @@ public:
       // initial entry by the scheduler into the body of this thread
       stack = context::spawn(context::addr(ctx), this);
     }
+    fibers.mine() = this;
     // jump into body of this thread
     context::swap(my_ctx(), context::addr(ctx), this);
     return status;
@@ -163,8 +163,8 @@ public:
     exit_to_scheduler();
   }
 
-  fjnative(const F& f)
-    : fiber(), f(f)  { }
+  fjnative()
+    : fiber() { }
 
   ~fjnative() {
     if ((stack == nullptr) || (stack == notownstackptr)) {
@@ -205,6 +205,10 @@ public:
     }
     //    util::atomic::aprintf("%d %d ran %p; going to run f %p\n",id,util::worker::get_my_id(),f1,f2);
     // prepare f2 for local run
+        if (f!=f2) {
+      printf("f=%p f2=%p\n",f,f2);
+    }
+
     assert(f == f2);
     assert(f2->stack == nullptr);
     f2->stack = notownstackptr;
@@ -221,14 +225,25 @@ public:
 
 };
 
+char fjnative::dummy1;
+char fjnative::dummy2;
+
 template <typename F>
-char fjnative<F>::dummy1;
-template <typename F>
-char fjnative<F>::dummy2;
+class fjnative_of_function : public fjnative {
+public:
+
+  fjnative_of_function(const F& f) : f(f) { }
+
+  F f;
+
+  void run2() {
+    f();
+  }
+};
 
 template <class F>
-fjnative<F>* new_fjnative_of_function(const F& f) {
-  return new fjnative<F>(f);
+fjnative_of_function<F>* new_fjnative_of_function(const F& f) {
+  return new fjnative_of_function<F>(f);
 }
 
 template <class F1, class F2>

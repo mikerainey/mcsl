@@ -3,6 +3,88 @@
 #include "mcsl_fiber.hpp"
 
 /*---------------------------------------------------------------------*/
+/* Basic stats */
+
+namespace mcsl {
+
+class basic_stats_configuration {
+public:
+
+#ifdef MCSL_ENABLE_STATS
+  static constexpr
+  bool enabled = true;
+#else
+  static constexpr
+  bool enabled = false;
+#endif
+
+  using counter_id_type = enum counter_id_enum {
+    nb_fibers,
+    nb_steals,
+    nb_counters
+  };
+
+  static
+  const char* name_of_counter(counter_id_type id) {
+    std::map<counter_id_type, const char*> names;
+    names[nb_fibers] = "nb_fibers";
+    names[nb_steals] = "nb_steals";
+    return names[id];
+  }
+  
+};
+
+using basic_stats = stats_base<basic_stats_configuration>;
+
+/*---------------------------------------------------------------------*/
+/* Basic Logging */
+
+#ifdef MCSL_ENABLE_LOGGING
+using basic_logging = logging_base<true>;
+#else
+using basic_logging = logging_base<false>;
+#endif
+
+/*---------------------------------------------------------------------*/
+/* Basic scheduler configuration */
+
+class basic_scheduler_configuration {
+public:
+  
+  static
+  void initialize_worker() {
+  }  
+
+  static
+  void initialize_signal_handler(ping_thread_status_type& status) {
+    status = ping_thread_status_disable;
+  }
+  
+  static
+  void launch_ping_thread(std::size_t, perworker::array<pthread_t>&,
+                          ping_thread_status_type&,
+                          std::mutex&,
+                          std::condition_variable&) {
+  }
+
+
+  template <template <typename> typename Fiber>
+  static
+  void schedule(Fiber<basic_scheduler_configuration>* f) {
+    mcsl::schedule<basic_scheduler_configuration, Fiber, basic_stats, basic_logging>(f);
+  }
+
+  template <template <typename> typename Fiber>
+  static
+  Fiber<basic_scheduler_configuration>* take() {
+    return mcsl::take<basic_scheduler_configuration, Fiber, basic_stats, basic_logging>();
+  }
+
+};
+
+} // end namespace
+
+/*---------------------------------------------------------------------*/
 /* Context switching */
 
 using _context_pointer = char*;
@@ -97,7 +179,7 @@ public:
 };
 
 static
-perworker::array<forkable_fiber*> fibers;
+perworker::array<forkable_fiber*> current_fiber;
 
 class fjnative : public fiber<basic_scheduler_configuration>, public forkable_fiber {
 public:
@@ -147,7 +229,7 @@ public:
       // initial entry by the scheduler into the body of this thread
       stack = context::spawn(context::addr(ctx), this);
     }
-    fibers.mine() = this;
+    current_fiber.mine() = this;
     // jump into body of this thread
     context::swap(my_ctx(), context::addr(ctx), this);
     return status;
@@ -252,12 +334,57 @@ void fork2(const F1& f1, const F2& f2) {
   f1();
   f2();
 #else
-  auto f = fibers.mine();
+  auto f = current_fiber.mine();
   assert(f != nullptr);
   auto fp1 = new_fjnative_of_function(f1);
   auto fp2 = new_fjnative_of_function(f2);
   f->fork2(fp1, fp2);
 #endif
 }
+
+/*---------------------------------------------------------------------*/
+/* Scheduler launch */
   
+template <typename Scheduler_configuration, typename Stats, typename Logging,
+          typename Bench_pre, typename Bench_post>
+void launch0(int argc, char** argv,
+	     const Bench_pre& bench_pre,
+	     const Bench_post& bench_post,
+	     fiber<Scheduler_configuration>* f_body) {
+  deepsea::cmdline::set(argc, argv);
+  std::size_t nb_workers = deepsea::cmdline::parse_or_default_int("proc", 1);
+  std::chrono::time_point<std::chrono::system_clock> start_time, end_time;
+  Logging::initialize();
+  bench_pre();
+  {
+    auto f_cont = new_fjnative_of_function([&] {
+      end_time = std::chrono::system_clock::now();
+    });
+    fiber<Scheduler_configuration>::add_edge(f_body, f_cont);
+    start_time = std::chrono::system_clock::now();
+    f_cont->release();
+    f_body->release();
+  }
+  using scheduler_type = chase_lev_work_stealing_scheduler<Scheduler_configuration, fiber, Stats, Logging>;
+  Stats::on_enter_launch();
+  scheduler_type::launch(nb_workers);
+  Stats::on_exit_launch();
+  bench_post();
+  std::chrono::duration<double> elapsed = end_time - start_time;
+  printf("exectime %.3f\n", elapsed.count());
+  Stats::report();
+  Logging::output();
+}
+
+template <typename Bench_pre, typename Bench_post, typename Bench_body>
+void launch(int argc, char** argv,
+            const Bench_pre& bench_pre,
+            const Bench_post& bench_post,
+            const Bench_body& bench_body) {
+  auto f_body = new_fjnative_of_function([&] {
+    bench_body();
+  });
+  launch0<basic_scheduler_configuration, basic_stats, basic_logging, Bench_pre, Bench_post>(argc, argv, bench_pre, bench_post, f_body);
+}
+
 } // end namespace

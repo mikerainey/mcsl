@@ -8,6 +8,7 @@
 
 #include "mcsl_aligned.hpp"
 #include "mcsl_stats.hpp"
+#include "mcsl_logging.hpp"
 #include "mcsl_snzi.hpp"
 
 namespace mcsl {
@@ -149,7 +150,7 @@ using random_number_seed_type = uint64_t;
   
 template <typename Scheduler_configuration,
 	  template <typename> typename Fiber,
-	  typename Stats>
+	  typename Stats, typename Logging>
 class chase_lev_work_stealing_scheduler {
 private:
 
@@ -228,6 +229,7 @@ public:
         termination_barrier.set_active(false);
         return scheduler_status_finish;
       }
+      log_event<Logging>(enter_wait);
       auto sa = Stats::on_enter_acquire();
       termination_barrier.set_active(false);
       auto my_id = perworker::unique_id::get_my_id();
@@ -247,12 +249,14 @@ public:
         if (termination_barrier.is_terminated() || should_terminate) {
           assert(current == nullptr);
           Stats::on_exit_acquire(sa);
+          log_event<Logging>(exit_wait);
           return scheduler_status_finish;
         }
       }
       assert(current != nullptr);
       buffers.mine().push_back(current);
       Stats::on_exit_acquire(sa);
+      log_event<Logging>(exit_wait);
       return scheduler_status_active;
     };
 
@@ -319,7 +323,9 @@ public:
     }
     pthreads[0] = pthread_self();
     Scheduler_configuration::launch_ping_thread(nb_workers, pthreads, ping_thread_status, ping_thread_lock, ping_thread_condition_variable);
+    log_event<Logging>(enter_algo);
     worker_loop();
+    log_event<Logging>(exit_algo);
   }
 
   static
@@ -327,11 +333,7 @@ public:
     auto& my_buffer = buffers.mine();
     auto& my_deque = deques.mine();
     fiber_type* current = nullptr;
-    if (! my_buffer.empty()) {
-      current = my_buffer.back();
-      my_buffer.pop_back();
-      return current;
-    }
+    assert(my_buffer.empty());
     current = my_deque.pop();
     if (current != nullptr) {
       my_buffer.push_back(current);
@@ -356,114 +358,45 @@ public:
 };
 
 template <typename Scheduler_configuration,
-	template <typename> typename Fiber,
-	typename Stats>
-perworker::array<typename chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats>::cl_deque_type> chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats>::deques;
+          template <typename> typename Fiber,
+          typename Stats, typename Logging>
+perworker::array<typename chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::cl_deque_type> chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::deques;
 
 template <typename Scheduler_configuration,
-	template <typename> typename Fiber,
-	typename Stats>
-perworker::array<typename chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats>::buffer_type> chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats>::buffers;
+          template <typename> typename Fiber,
+          typename Stats, typename Logging>
+perworker::array<typename chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::buffer_type> chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::buffers;
 
 template <typename Scheduler_configuration,
-	template <typename> typename Fiber,
-	typename Stats>
-perworker::array<random_number_seed_type> chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats>::random_number_generators;
-
-template <typename Scheduler_configuration,
-	  template <typename> typename Fiber,
-	  typename Stats>
-perworker::array<pthread_t> chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats>::pthreads;
+          template <typename> typename Fiber,
+          typename Stats, typename Logging>
+perworker::array<random_number_seed_type> chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::random_number_generators;
 
 template <typename Scheduler_configuration,
 	  template <typename> typename Fiber,
-	  typename Stats>
+	  typename Stats, typename Logging>
+perworker::array<pthread_t> chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::pthreads;
+
+template <typename Scheduler_configuration,
+	  template <typename> typename Fiber,
+	  typename Stats, typename Logging>
 Fiber<Scheduler_configuration>* take() {
-  return chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats>::take();  
+  return chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::take();  
 }
 
 template <typename Scheduler_configuration,
 	  template <typename> typename Fiber,
-	  typename Stats>
+	  typename Stats, typename Logging>
 void schedule(Fiber<Scheduler_configuration>* f) {
-  chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats>::schedule(f);  
+  chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::schedule(f);  
 }
 
 template <typename Scheduler_configuration,
 	  template <typename> typename Fiber,
-	  typename Stats>
+	  typename Stats, typename Logging>
 void commit() {
-  chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats>::commit();
+  chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::commit();
 }
-
-/*---------------------------------------------------------------------*/
-/* Basic stats */
-
-class basic_stats_configuration {
-public:
-
-#ifdef MCSL_ENABLE_STATS
-  static constexpr
-  bool enabled = true;
-#else
-  static constexpr
-  bool enabled = false;
-#endif
-
-  using counter_id_type = enum counter_id_enum {
-    nb_fibers,
-    nb_steals,
-    nb_counters
-  };
-
-  static
-  const char* name_of_counter(counter_id_type id) {
-    std::map<counter_id_type, const char*> names;
-    names[nb_fibers] = "nb_fibers";
-    names[nb_steals] = "nb_steals";
-    return names[id];
-  }
-  
-};
-
-using basic_stats = stats_base<basic_stats_configuration>;
-
-/*---------------------------------------------------------------------*/
-/* Basic scheduler configuration */
-
-class basic_scheduler_configuration {
-public:
-  
-  static
-  void initialize_worker() {
-  }  
-
-  static
-  void initialize_signal_handler(ping_thread_status_type& status) {
-    status = ping_thread_status_disable;
-  }
-  
-  static
-  void launch_ping_thread(std::size_t, perworker::array<pthread_t>&,
-                          ping_thread_status_type&,
-                          std::mutex&,
-                          std::condition_variable&) {
-  }
-
-
-  template <template <typename> typename Fiber>
-  static
-  void schedule(Fiber<basic_scheduler_configuration>* f) {
-    mcsl::schedule<basic_scheduler_configuration, Fiber, basic_stats>(f);
-  }
-
-  template <template <typename> typename Fiber>
-  static
-  Fiber<basic_scheduler_configuration>* take() {
-    return mcsl::take<basic_scheduler_configuration, Fiber, basic_stats>();
-  }
-
-};
   
 } // end namespace
 

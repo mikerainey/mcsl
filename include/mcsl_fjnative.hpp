@@ -393,13 +393,16 @@ void launch0(int argc, char** argv,
   std::size_t nb_workers = deepsea::cmdline::parse_or_default_int("proc", 1);
   std::chrono::time_point<std::chrono::system_clock> start_time, end_time;
   Logging::initialize();
-  bench_pre();
   {
+    auto f_pre = new_fjnative_of_function(bench_pre);
     auto f_cont = new_fjnative_of_function([&] {
       end_time = std::chrono::system_clock::now();
+      bench_post();
     });
+    fiber<Scheduler_configuration>::add_edge(f_pre, f_body);
     fiber<Scheduler_configuration>::add_edge(f_body, f_cont);
     start_time = std::chrono::system_clock::now();
+    f_pre->release();
     f_cont->release();
     f_body->release();
   }
@@ -407,7 +410,6 @@ void launch0(int argc, char** argv,
   Stats::on_enter_launch();
   scheduler_type::launch(nb_workers);
   Stats::on_exit_launch();
-  bench_post();
   std::chrono::duration<double> elapsed = end_time - start_time;
   printf("exectime %.3f\n", elapsed.count());
   Stats::report();

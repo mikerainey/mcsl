@@ -90,10 +90,53 @@ public:
 using _context_pointer = char*;
 
 extern "C"
-void* _mcsl_ctx_save(_context_pointer ctx);
+void* _mcsl_ctx_save(_context_pointer);
+asm(R"(
+.globl _mcsl_ctx_save
+        .type _mcsl_ctx_save, @function
+        .align 16
+_mcsl_ctx_save:
+        .cfi_startproc
+        movq %rbx, 0(%rdi)
+        movq %rbp, 8(%rdi)
+        movq %r12, 16(%rdi)
+        movq %r13, 24(%rdi)
+        movq %r14, 32(%rdi)
+        movq %r15, 40(%rdi)
+        leaq 8(%rsp), %rdx
+        movq %rdx, 48(%rdi)
+        movq (%rsp), %rax
+        movq %rax, 56(%rdi)
+        xorq %rax, %rax
+        ret
+        .size _mcsl_ctx_save, .-_mcsl_ctx_save
+        .cfi_endproc
+)");
 
 extern "C"
 void _mcsl_ctx_restore(_context_pointer ctx, void* t);
+asm(R"(
+.globl _mcsl_ctx_restore
+        .type _mcsl_ctx_restore, @function
+        .align 16
+_mcsl_ctx_restore:
+        .cfi_startproc
+        movq 0(%rdi), %rbx
+        movq 8(%rdi), %rbp
+        movq 16(%rdi), %r12
+        movq 24(%rdi), %r13
+        movq 32(%rdi), %r14
+        movq 40(%rdi), %r15
+        test %rsi, %rsi
+        mov $01, %rax
+        cmove %rax, %rsi
+        mov %rsi, %rax
+        movq 56(%rdi), %rdx
+        movq 48(%rdi), %rsp
+        jmpq *%rdx
+        .size _mcsl_ctx_restore, .-_mcsl_ctx_restore
+        .cfi_endproc
+)");
 
 static constexpr
 int thread_stack_szb = 1<<20;
@@ -245,8 +288,7 @@ public:
     exit_to_scheduler();
   }
 
-  fjnative()
-    : fiber() { }
+  fjnative() : fiber() { }
 
   ~fjnative() {
     if ((stack == nullptr) || (stack == notownstackptr)) {
@@ -287,10 +329,6 @@ public:
     }
     //    util::atomic::aprintf("%d %d ran %p; going to run f %p\n",id,util::worker::get_my_id(),f1,f2);
     // prepare f2 for local run
-        if (f!=f2) {
-      printf("f=%p f2=%p\n",f,f2);
-    }
-
     assert(f == f2);
     assert(f2->stack == nullptr);
     f2->stack = notownstackptr;

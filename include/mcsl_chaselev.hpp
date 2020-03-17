@@ -203,13 +203,15 @@ private:
     assert(my_buffer.empty());
     return current;
   }
+
+  using termination_detection_barrier_type = typename Scheduler_configuration::termination_detection_barrier_type;
   
 public:
 
   static
   void launch(std::size_t nb_workers) {
     bool should_terminate = false;
-    snzi_termination_detection_barrier<> termination_barrier;
+    termination_detection_barrier_type termination_barrier;
     
     std::size_t nb_workers_exited = 0;
     std::mutex exit_lock;

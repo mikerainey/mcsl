@@ -67,7 +67,6 @@ public:
                           std::condition_variable&) {
   }
 
-
   template <template <typename> typename Fiber>
   static
   void schedule(Fiber<basic_scheduler_configuration>* f) {
@@ -79,6 +78,8 @@ public:
   Fiber<basic_scheduler_configuration>* take() {
     return mcsl::take<basic_scheduler_configuration, Fiber, basic_stats, basic_logging>();
   }
+
+  using termination_detection_barrier_type = noop_termination_detection_barrier;
 
 };
 
@@ -382,6 +383,15 @@ void fork2(const F1& f1, const F2& f2) {
 
 /*---------------------------------------------------------------------*/
 /* Scheduler launch */
+
+template <typename Scheduler_configuration>
+class terminal_fiber : public fiber<Scheduler_configuration> {
+public:
+  terminal_fiber() : fiber<Scheduler_configuration>() { }
+  fiber_status_type run() {
+    return fiber_status_terminate;
+  }
+};
   
 template <typename Scheduler_configuration, typename Stats, typename Logging,
           typename Bench_pre, typename Bench_post>
@@ -399,12 +409,15 @@ void launch0(int argc, char** argv,
       end_time = std::chrono::system_clock::now();
       bench_post();
     });
+    auto f_term = new terminal_fiber<Scheduler_configuration>;
     fiber<Scheduler_configuration>::add_edge(f_pre, f_body);
     fiber<Scheduler_configuration>::add_edge(f_body, f_cont);
+    fiber<Scheduler_configuration>::add_edge(f_cont, f_term);
     start_time = std::chrono::system_clock::now();
     f_pre->release();
     f_cont->release();
     f_body->release();
+    f_term->release();
   }
   using scheduler_type = chase_lev_work_stealing_scheduler<Scheduler_configuration, fiber, Stats, Logging>;
   Stats::on_enter_launch();

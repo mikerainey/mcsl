@@ -244,4 +244,20 @@ public:
   
 };
 
+/*---------------------------------------------------------------------*/
+/* Trivial termination detector, which does nothing */
+  
+class noop_termination_detection_barrier {
+public:
+
+  bool set_active(bool active) {
+    return false;
+  }
+
+  bool is_terminated() {
+    return false;
+  }
+  
+};
+  
 } // end namespace

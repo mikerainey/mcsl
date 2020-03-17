@@ -429,12 +429,15 @@ void launch0(int argc, char** argv,
   Logging::output();
 }
 
+bool started = false;
+
 template <typename Bench_pre, typename Bench_post, typename Bench_body>
 void launch(int argc, char** argv,
             const Bench_pre& bench_pre,
             const Bench_post& bench_post,
             const Bench_body& bench_body) {
   auto f_body = new_fjnative_of_function([&] {
+    started = true;
     bench_body();
   });
   launch0<basic_scheduler_configuration, basic_stats, basic_logging, Bench_pre, Bench_post>(argc, argv, bench_pre, bench_post, f_body);

@@ -5,7 +5,6 @@
 #include "mcsl_aligned.hpp"
 #include "mcsl_util.hpp"
 #include "mcsl_perworker.hpp"
-#include "mcsl_tagged.hpp"
 
 namespace mcsl {
   
@@ -14,9 +13,6 @@ namespace mcsl {
 
 static constexpr
 int snzi_one_half = -1;
-
-static constexpr
-int snzi_root_node_tag = 1;
 
 template <typename Snzi_Node>
 void snzi_increment(Snzi_Node& node) {
@@ -94,7 +90,7 @@ bool snzi_decrement(Snzi_Node& node) {
 class snzi_node {
 public:
 
-  using counter_type = struct {
+  using counter_type = struct counter_struct {
     int c; // counter value
     int v; // version number
   };
@@ -104,19 +100,12 @@ private:
   cache_aligned_item<std::atomic<counter_type>> counter;
 
   cache_aligned_item<snzi_node*> parent;
-
-  template <class Item>
-  static
-  snzi_node* create_root_node(Item x) {
-    return (snzi_node*)tagged::tag_with(x, snzi_root_node_tag);
-  }
   
 public:
 
   snzi_node(snzi_node* _parent = nullptr) {
     {
-      auto p = (_parent == nullptr) ? create_root_node(_parent) : _parent;
-      parent.get() = p;
+      parent.get() = _parent;
     }
     {
       counter_type c = {.c = 0, .v = 0};
@@ -146,7 +135,7 @@ public:
 
   static
   bool is_root_node(const snzi_node* n) {
-    return tagged::tag_of(n) == snzi_root_node_tag;
+    return n == nullptr;
   }
   
 };

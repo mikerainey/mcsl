@@ -61,4 +61,21 @@ public:
 
 };
 
+/*---------------------------------------------------------------------*/
+/* A fiber that, when executed, initiates the teardown of the 
+ * scheduler. 
+ */
+  
+template <typename Scheduler_configuration>
+class terminal_fiber : public fiber<Scheduler_configuration> {
+public:
+  
+  terminal_fiber() : fiber<Scheduler_configuration>() { }
+  
+  fiber_status_type run() {
+    return fiber_status_terminate;
+  }
+  
+};
+
 } // end namespace

@@ -37,7 +37,7 @@ public:
 using basic_stats = stats_base<basic_stats_configuration>;
 
 /*---------------------------------------------------------------------*/
-/* Basic Logging */
+/* Basic logging */
 
 #ifdef MCSL_ENABLE_LOGGING
 using basic_logging = logging_base<true>;
@@ -383,15 +383,6 @@ void fork2(const F1& f1, const F2& f2) {
 
 /*---------------------------------------------------------------------*/
 /* Scheduler launch */
-
-template <typename Scheduler_configuration>
-class terminal_fiber : public fiber<Scheduler_configuration> {
-public:
-  terminal_fiber() : fiber<Scheduler_configuration>() { }
-  fiber_status_type run() {
-    return fiber_status_terminate;
-  }
-};
   
 template <typename Scheduler_configuration, typename Stats, typename Logging,
           typename Bench_pre, typename Bench_post>

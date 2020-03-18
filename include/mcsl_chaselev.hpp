@@ -170,8 +170,7 @@ private:
   perworker::array<random_number_seed_type> random_number_generators;
 
   static
-  std::size_t random_other_worker(size_t my_id) {
-    auto nb_workers = perworker::unique_id::get_nb_workers();
+  std::size_t random_other_worker(size_t nb_workers, size_t my_id) {
     assert(nb_workers != 1);
     auto& rn = random_number_generators.mine();
     auto id = (std::size_t)(rn % (nb_workers - 1));
@@ -238,7 +237,7 @@ public:
       fiber_type* current = nullptr;
       while (current == nullptr) {
         std::this_thread::yield();
-        auto k = random_other_worker(my_id);
+        auto k = random_other_worker(nb_workers, my_id);
         if (! deques[k].empty()) {
           termination_barrier.set_active(true);
           current = deques[k].steal();

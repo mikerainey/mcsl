@@ -56,15 +56,18 @@ public:
   }  
 
   static
-  void initialize_signal_handler(ping_thread_status_type& status) {
-    status = ping_thread_status_disable;
+  void initialize_signal_handler() {
+
+  }
+
+  static
+  void wait_to_terminate_ping_thread() {
+    
   }
   
   static
-  void launch_ping_thread(std::size_t, perworker::array<pthread_t>&,
-                          ping_thread_status_type&,
-                          std::mutex&,
-                          std::condition_variable&) {
+  void launch_ping_thread(std::size_t, perworker::array<pthread_t>&) {
+    
   }
 
   template <template <typename> typename Fiber>

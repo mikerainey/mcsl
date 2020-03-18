@@ -139,13 +139,6 @@ using fiber_status_type = enum fiber_status_enum {
   fiber_status_terminate
 };
 
-using ping_thread_status_type = enum ping_thread_status_enum {
-  ping_thread_status_active,
-  ping_thread_status_terminate,
-  ping_thread_status_finish,
-  ping_thread_status_disable
-};
-
 using random_number_seed_type = uint64_t;
   
 template <typename Scheduler_configuration,
@@ -216,10 +209,6 @@ public:
     std::mutex exit_lock;
     std::condition_variable exit_condition_variable;
 
-    ping_thread_status_type ping_thread_status = ping_thread_status_active;
-    std::mutex ping_thread_lock;
-    std::condition_variable ping_thread_condition_variable;
-
     using scheduler_status_type = enum scheduler_status_enum {
       scheduler_status_active,
       scheduler_status_finish
@@ -289,13 +278,7 @@ public:
         assert((current == nullptr) && my_deque.empty());
         status = acquire();
       }
-      if (ping_thread_status != ping_thread_status_disable) {
-        std::unique_lock<std::mutex> lk(ping_thread_lock);
-        if (ping_thread_status == ping_thread_status_active) {
-          ping_thread_status = ping_thread_status_terminate;
-        }
-        ping_thread_condition_variable.wait(lk, [&] { return ping_thread_status == ping_thread_status_finish; });
-      }
+      Scheduler_configuration::wait_to_terminate_ping_thread();
       {
         std::unique_lock<std::mutex> lk(exit_lock);
         auto nb = ++nb_workers_exited;
@@ -311,7 +294,7 @@ public:
       random_number_generators[i] = hash(i);
     }
 
-    Scheduler_configuration::initialize_signal_handler(ping_thread_status);
+    Scheduler_configuration::initialize_signal_handler();
 
     termination_barrier.set_active(true);
     for (std::size_t i = 1; i < nb_workers; i++) {
@@ -323,7 +306,7 @@ public:
       t.detach();
     }
     pthreads[0] = pthread_self();
-    Scheduler_configuration::launch_ping_thread(nb_workers, pthreads, ping_thread_status, ping_thread_lock, ping_thread_condition_variable);
+    Scheduler_configuration::launch_ping_thread(nb_workers, pthreads);
     log_event<Logging>(enter_algo);
     worker_loop();
     log_event<Logging>(exit_algo);

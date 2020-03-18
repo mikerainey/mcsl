@@ -76,10 +76,7 @@ public:
 
 template <std::size_t cache_align_szb=MCSL_CACHE_LINE_SZB>
 void* alloc(std::size_t sizeb) {
-  // aligned_sizeb needed because the second argument to aligned_alloc
-  // is required to be a multiple of the first
-  auto aligned_sizeb = sizeb + (sizeb % cache_align_szb);
-  return aligned_alloc(cache_align_szb, aligned_sizeb);
+  return std::aligned_alloc(cache_align_szb, cache_align_szb * sizeb);
 }
 
 template <typename Item,

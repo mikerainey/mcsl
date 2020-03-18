@@ -1,3 +1,5 @@
+#pragma once
+
 #include <cstdio>
 #include <vector>
 #include <assert.h>
@@ -11,11 +13,7 @@
 #include <hwloc.h>
 #endif
 
-#include "mcsl_atomic.hpp"
 #include "mcsl_perworker.hpp"
-
-#ifndef _MCSL_MACHINE_H_
-#define _MCSL_MACHINE_H_
 
 namespace mcsl {
 
@@ -91,7 +89,7 @@ void hwloc_assign_cpusets(std::size_t nb_workers,
       resource_ids[core_id] = { .depth = core_depth, .position = core_id };
     }
   } else if (resource_binding == resource_binding_by_numa_node) {
-    atomic::die("todo");
+    die("todo");
   } else {
     assert(resource_binding == resource_binding_all);
     for (std::size_t worker_id = 0; worker_id != nb_workers; ++worker_id) {
@@ -202,12 +200,10 @@ double load_cpu_frequency_ghz() {
   cpu_frequency_mhz = (float)freq / 1000000.;
 #endif
   if (cpu_frequency_mhz == 0.) {
-    atomic::die("Failed to read CPU frequency\n");
+    die("Failed to read CPU frequency\n");
   }
   cpu_frequency_ghz = (double) (cpu_frequency_mhz / 1000.0);
   return cpu_frequency_ghz;
 }
 
 } // end namespace
-
-#endif /*! _MCSL_MACHINE_H_ */

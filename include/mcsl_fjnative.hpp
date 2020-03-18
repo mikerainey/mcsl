@@ -381,8 +381,25 @@ void fork2(const F1& f1, const F2& f2) {
 #endif
 }
 
+
 /*---------------------------------------------------------------------*/
 /* Scheduler launch */
+
+/* A fiber that, when executed, initiates the teardown of the 
+ * scheduler. 
+ */
+  
+template <typename Scheduler_configuration>
+class terminal_fiber : public fiber<Scheduler_configuration> {
+public:
+  
+  terminal_fiber() : fiber<Scheduler_configuration>() { }
+  
+  fiber_status_type run() {
+    return fiber_status_terminate;
+  }
+  
+};
   
 template <typename Scheduler_configuration, typename Stats, typename Logging,
           typename Bench_pre, typename Bench_post>

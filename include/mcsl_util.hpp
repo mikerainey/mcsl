@@ -4,6 +4,7 @@
 #include <atomic>
 #include <stdarg.h>
 #include <pthread.h>
+#include <chrono>
 
 namespace mcsl {
 
@@ -63,6 +64,31 @@ void spin_for(uint64_t nb_cycles) {
   
 } // end namespace
 
+/*---------------------------------------------------------------------*/
+/* System clock */
+
+namespace clock {
+
+using time_point_type = std::chrono::time_point<std::chrono::system_clock>;
+  
+static inline
+double diff(time_point_type start, time_point_type finish) {
+  std::chrono::duration<double> elapsed = finish - start;
+  return elapsed.count();
+}
+
+static inline
+time_point_type now() {
+  return std::chrono::system_clock::now();
+}
+
+static inline
+double since(time_point_type start) {
+  return diff(start, now());
+}
+  
+} // end namespace
+  
 /*---------------------------------------------------------------------*/
 /* Atomic compare-and-exchange operation, with backoff */
 

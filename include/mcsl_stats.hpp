@@ -1,9 +1,9 @@
 #pragma once
 
-#include <chrono>
 #include <map>
 #include <iostream>
 
+#include "mcsl_util.hpp"
 #include "mcsl_perworker.hpp"
 
 namespace mcsl {
@@ -14,8 +14,6 @@ public:
 
   using counter_id_type = typename Configuration::counter_id_type;
   
-  using time_point_type = std::chrono::time_point<std::chrono::system_clock>;
-
   using configuration_type = Configuration;
   
 private:
@@ -28,7 +26,7 @@ private:
   perworker::array<private_counters> all_counters;
 
   static
-  time_point_type enter_launch_time;
+  clock::time_point_type enter_launch_time;
   
   static
   double launch_duration;
@@ -36,13 +34,6 @@ private:
   static
   perworker::array<double> all_total_idle_time;
   
-  static
-  double since(time_point_type start) {
-    auto end = std::chrono::system_clock::now();
-    std::chrono::duration<double> elapsed = end - start;
-    return elapsed.count();
-  }
-
 public:
 
   static inline
@@ -55,28 +46,28 @@ public:
 
   static
   void on_enter_launch() {
-    enter_launch_time = std::chrono::system_clock::now();
+    enter_launch_time = clock::now();
   }
   
   static
   void on_exit_launch() {
-    launch_duration = since(enter_launch_time);
+    launch_duration = clock::since(enter_launch_time);
   }
 
   static
-  time_point_type on_enter_acquire() {
+  clock::time_point_type on_enter_acquire() {
     if (! Configuration::enabled) {
-      return time_point_type();
+      return clock::time_point_type();
     }
-    return std::chrono::system_clock::now();
+    return clock::now();
   }
   
   static
-  void on_exit_acquire(time_point_type enter_acquire_time) {
+  void on_exit_acquire(clock::time_point_type enter_acquire_time) {
     if (! Configuration::enabled) {
       return;
     }
-    all_total_idle_time.mine() += since(enter_acquire_time);
+    all_total_idle_time.mine() += clock::since(enter_acquire_time);
   }
 
   static
@@ -111,7 +102,7 @@ template <typename Configuration>
 perworker::array<typename stats_base<Configuration>::private_counters> stats_base<Configuration>::all_counters;
 
 template <typename Configuration>
-typename stats_base<Configuration>::time_point_type stats_base<Configuration>::enter_launch_time;
+clock::time_point_type stats_base<Configuration>::enter_launch_time;
 
 template <typename Configuration>
 double stats_base<Configuration>::launch_duration;

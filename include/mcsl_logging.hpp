@@ -1,6 +1,5 @@
 #pragma once
 
-#include <chrono>
 #include <vector>
 #include <string>
 #include <cstdlib>
@@ -128,8 +127,6 @@ public:
   
 using buffer_type = std::vector<event_type>;
   
-using time_point_type = std::chrono::time_point<std::chrono::system_clock>;
-
 static constexpr
 int max_nb_ppts = 50000;
 
@@ -147,7 +144,7 @@ public:
   bool tracking_kind[nb_kinds];
   
   static
-  time_point_type basetime;
+  clock::time_point_type basetime;
 
   static
   program_point_type ppts[max_nb_ppts];
@@ -167,7 +164,7 @@ public:
     if (pview) {
       tracking_kind[phases] = true;
     }
-    basetime = std::chrono::system_clock::now();
+    basetime = clock::now();
     push(event_type(enter_launch));
   }
   
@@ -181,8 +178,7 @@ public:
     if (! tracking_kind[k]) {
       return;
     }
-    std::chrono::duration<double> elapsed = std::chrono::system_clock::now() - basetime;
-    e.timestamp = elapsed.count() * 1000000;
+    e.timestamp = clock::since(basetime) * 1000000;
     e.worker_id = perworker::unique_id::get_my_id();
     if (real_time) {
       acquire_print_lock();
@@ -260,7 +256,7 @@ template <bool enabled>
 program_point_type logging_base<enabled>::ppts[max_nb_ppts];
 
 template <bool enabled>
-time_point_type logging_base<enabled>::basetime;
+clock::time_point_type logging_base<enabled>::basetime;
 
 template <typename Log_buffer>
 static inline

@@ -33,12 +33,12 @@ using event_tag_type = enum event_tag_type_enum {
 static inline
 std::string name_of(event_tag_type e) {
   switch (e) {
-    case enter_launch: return "enter_launch ";
-    case exit_launch: return "exit_launch ";
-    case enter_algo: return "enter_algo ";
-    case exit_algo: return "exit_algo ";
-    case enter_wait: return "enter_wait ";
-    default: return "unknown_event ";
+    case enter_launch:   return "enter_launch ";
+    case exit_launch:    return "exit_launch ";
+    case enter_algo:     return "enter_algo ";
+    case exit_algo:      return "exit_algo ";
+    case enter_wait:     return "enter_wait ";
+    default:             return "unknown_event ";
   }
 }
 
@@ -52,7 +52,7 @@ event_kind_type kind_of(event_tag_type e) {
     case exit_wait:
     case algo_phase:                return phases;
     case program_point:             return program;
-    default: return nb_kinds;
+    default:                        return nb_kinds;
   }
 }
 
@@ -66,7 +66,7 @@ void fwrite_int64 (FILE* f, int64_t v) {
   fwrite(&v, sizeof(v), 1, f);
 }
 
-using program_point_type = struct {
+using program_point_type = struct program_point_struct {
   
   int line_nb;
   
@@ -93,7 +93,7 @@ public:
   event_type(event_tag_type tag)
   : tag(tag) { }
   
-  union {
+  union extra_union {
     program_point_type ppt;
   } extra;
       
@@ -104,7 +104,7 @@ public:
   }
       
   void print_text(FILE* f) {
-    fprintf(f, "%lf\t%d\t%s\t", timestamp, worker_id, name_of(tag).c_str());
+    fprintf(f, "%lf\t%ld\t%s\t", timestamp, worker_id, name_of(tag).c_str());
     switch (tag) {
       case program_point: {
         fprintf(f, "%s \t %d \t %p",

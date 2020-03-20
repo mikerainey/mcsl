@@ -82,9 +82,9 @@ public:
         counter_value += all_counters[i].counters[counter_id];
       }
       const char* counter_name = Configuration::name_of_counter((counter_id_type)counter_id);
-      std::cout << counter_name << " " << counter_value << std::endl;
+      aprintf("%s %ld\n", counter_name, counter_value);
     }
-    std::cout << "launch_duration " << launch_duration << std::endl;
+    aprintf("launch_duration %f\n", launch_duration);
     double cumulated_time = launch_duration * nb_workers;
     double total_idle_time = 0.0;
     for (std::size_t i = 0; i < nb_workers; ++i) {
@@ -92,8 +92,8 @@ public:
     }
     double relative_idle = total_idle_time / cumulated_time;
     double utilization = 1.0 - relative_idle;
-    std::cout << "total_idle_time " << total_idle_time << std::endl;
-    std::cout << "utilization " << utilization << std::endl;
+    aprintf("total_idle_time %f\n", total_idle_time);
+    aprintf("utilization %f\n", utilization);
   }
 
 };

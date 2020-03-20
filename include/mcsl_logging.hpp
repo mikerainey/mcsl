@@ -153,7 +153,7 @@ public:
   int nb_ppts;
   
   static
-  void initialize(bool _real_time, bool log_phases, bool log_fibers, bool pview) {
+  void _initialize(bool _real_time=false, bool log_phases=false, bool log_fibers=false, bool pview=false) {
     if (! enabled) {
       return;
     }
@@ -173,7 +173,7 @@ public:
     bool log_phases = deepsea::cmdline::parse_or_default_bool("log_phases", false);
     bool log_fibers = deepsea::cmdline::parse_or_default_bool("log_fibers", false);
     bool pview = deepsea::cmdline::parse_or_default_bool("pview", false);
-    initialize(real_time, log_phases, log_fibers, pview);
+    _initialize(real_time, log_phases, log_fibers, pview);
   }
   
   static inline
@@ -201,8 +201,11 @@ public:
     push(event_type(tag));
   }
 
+  static constexpr
+  const char* dflt_log_bytes_fname = "LOG_BIN";
+
   static
-  void output_bytes(buffer_type& b, bool pview, std::string fname) {
+  void _output_bytes(buffer_type& b, bool pview=false, std::string fname=dflt_log_bytes_fname) {
     if (fname == "") {
       return;
     }
@@ -216,13 +219,13 @@ public:
   static
   void output_bytes(buffer_type& b) {
     bool pview = deepsea::cmdline::parse_or_default_bool("pview", false);
-    auto dflt = pview ? "LOG_BIN" : "";
+    auto dflt = pview ? dflt_log_bytes_fname : "";
     std::string fname = deepsea::cmdline::parse_or_default_string("log_bytes_fname", dflt);
-    output_bytes(b, pview, fname);
+    _output_bytes(b, pview, fname);
   }
 
   static
-  void output_text(buffer_type& b, std::string fname) {
+  void _output_text(buffer_type& b, std::string fname="") {
 
     if (fname == "") {
       return;
@@ -237,7 +240,7 @@ public:
   static
   void output_text(buffer_type& b) {
     std::string fname = deepsea::cmdline::parse_or_default_string("log_text_fname", "");
-    output_text(b, fname);
+    _output_text(b, fname);
   }
 
   static

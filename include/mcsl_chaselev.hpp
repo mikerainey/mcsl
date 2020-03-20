@@ -6,10 +6,8 @@
 #include <thread>
 #include <condition_variable>
 
-#include "mcsl_aligned.hpp"
 #include "mcsl_stats.hpp"
 #include "mcsl_logging.hpp"
-#include "mcsl_snzi.hpp"
 
 namespace mcsl {
   
@@ -219,7 +217,7 @@ public:
         termination_barrier.set_active(false);
         return scheduler_status_finish;
       }
-      log_event<Logging>(enter_wait);
+      Logging::log_event(enter_wait);
       auto sa = Stats::on_enter_acquire();
       termination_barrier.set_active(false);
       auto my_id = perworker::unique_id::get_my_id();
@@ -239,14 +237,14 @@ public:
         if (termination_barrier.is_terminated() || should_terminate) {
           assert(current == nullptr);
           Stats::on_exit_acquire(sa);
-          log_event<Logging>(exit_wait);
+          Logging::log_event(exit_wait);
           return scheduler_status_finish;
         }
       }
       assert(current != nullptr);
       buffers.mine().push_back(current);
       Stats::on_exit_acquire(sa);
-      log_event<Logging>(exit_wait);
+      Logging::log_event(exit_wait);
       return scheduler_status_active;
     };
 
@@ -307,9 +305,9 @@ public:
     }
     pthreads[0] = pthread_self();
     Scheduler_configuration::launch_ping_thread(nb_workers, pthreads);
-    log_event<Logging>(enter_algo);
+    Logging::log_event(enter_algo);
     worker_loop();
-    log_event<Logging>(exit_algo);
+    Logging::log_event(exit_algo);
   }
 
   static
@@ -383,4 +381,3 @@ void commit() {
 }
   
 } // end namespace
-

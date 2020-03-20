@@ -108,4 +108,3 @@ template <typename Configuration>
 perworker::array<double> stats_base<Configuration>::all_total_idle_time;
 
 } // end namespace
-

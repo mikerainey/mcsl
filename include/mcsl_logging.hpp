@@ -98,9 +98,9 @@ public:
   } extra;
       
   void print_byte(FILE* f) {
-    fwrite_int64 (f, (int64_t) timestamp);
-    fwrite_int64 (f, worker_id);
-    fwrite_int64 (f, tag);
+    fwrite_int64(f, (int64_t) timestamp);
+    fwrite_int64(f, worker_id);
+    fwrite_int64(f, tag);
   }
       
   void print_text(FILE* f) {
@@ -187,7 +187,12 @@ public:
     }
     buffers.mine().push_back(e);
   }
-  
+
+  static inline
+  void log_event(event_tag_type tag) {
+    push(event_type(tag));
+  }
+
   static
   void output_bytes(buffer_type& b) {
     bool pview = deepsea::cmdline::parse_or_default_bool("pview", false);
@@ -257,12 +262,6 @@ program_point_type logging_base<enabled>::ppts[max_nb_ppts];
 
 template <bool enabled>
 clock::time_point_type logging_base<enabled>::basetime;
-
-template <typename Log_buffer>
-static inline
-void log_event(event_tag_type tag) {
-  Log_buffer::push(event_type(tag));
-}
 
   /*
 static inline

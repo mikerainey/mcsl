@@ -1,6 +1,7 @@
 #pragma once
 
 #include "mcsl_fiber.hpp"
+#include "mcsl_snzi.hpp"
 
 /*---------------------------------------------------------------------*/
 /* Basic stats */

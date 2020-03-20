@@ -153,19 +153,27 @@ public:
   int nb_ppts;
   
   static
-  void initialize() {
+  void initialize(bool _real_time, bool log_phases, bool log_fibers, bool pview) {
     if (! enabled) {
       return;
     }
-    real_time = deepsea::cmdline::parse_or_default_bool("log_stdout", false);
-    tracking_kind[phases] = deepsea::cmdline::parse_or_default_bool("log_phases", false);
-    tracking_kind[fibers] = deepsea::cmdline::parse_or_default_bool("log_fibers", false);
-    bool pview = deepsea::cmdline::parse_or_default_bool("pview", false);
+    real_time = _real_time;
+    tracking_kind[phases] = log_phases;
+    tracking_kind[fibers] = log_fibers;
     if (pview) {
       tracking_kind[phases] = true;
     }
     basetime = clock::now();
     push(event_type(enter_launch));
+  }
+
+  static
+  void initialize() {
+    bool real_time = deepsea::cmdline::parse_or_default_bool("log_stdout", false);
+    bool log_phases = deepsea::cmdline::parse_or_default_bool("log_phases", false);
+    bool log_fibers = deepsea::cmdline::parse_or_default_bool("log_fibers", false);
+    bool pview = deepsea::cmdline::parse_or_default_bool("pview", false);
+    initialize(real_time, log_phases, log_fibers, pview);
   }
   
   static inline
@@ -194,10 +202,7 @@ public:
   }
 
   static
-  void output_bytes(buffer_type& b) {
-    bool pview = deepsea::cmdline::parse_or_default_bool("pview", false);
-    auto dflt = pview ? "LOG_BIN" : "";
-    std::string fname = deepsea::cmdline::parse_or_default_string("log_bytes_fname", dflt);
+  void output_bytes(buffer_type& b, bool pview, std::string fname) {
     if (fname == "") {
       return;
     }
@@ -207,10 +212,18 @@ public:
     }
     fclose(f);
   }
-  
+
   static
-  void output_text(buffer_type& b) {
-    std::string fname = deepsea::cmdline::parse_or_default_string("log_text_fname", "");
+  void output_bytes(buffer_type& b) {
+    bool pview = deepsea::cmdline::parse_or_default_bool("pview", false);
+    auto dflt = pview ? "LOG_BIN" : "";
+    std::string fname = deepsea::cmdline::parse_or_default_string("log_bytes_fname", dflt);
+    output_bytes(b, pview, fname);
+  }
+
+  static
+  void output_text(buffer_type& b, std::string fname) {
+
     if (fname == "") {
       return;
     }
@@ -220,7 +233,13 @@ public:
     }
     fclose(f);
   }
-  
+
+  static
+  void output_text(buffer_type& b) {
+    std::string fname = deepsea::cmdline::parse_or_default_string("log_text_fname", "");
+    output_text(b, fname);
+  }
+
   static
   void output() {
     push(event_type(exit_launch));

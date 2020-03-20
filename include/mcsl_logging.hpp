@@ -226,7 +226,6 @@ public:
 
   static
   void _output_text(buffer_type& b, std::string fname="") {
-
     if (fname == "") {
       return;
     }

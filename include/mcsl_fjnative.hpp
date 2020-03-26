@@ -295,6 +295,10 @@ public:
 
   fjnative() : fiber() { }
 
+  void finish() {
+    notify();
+  } 
+
   ~fjnative() {
     if ((stack == nullptr) || (stack == notownstackptr)) {
       return;
@@ -357,7 +361,7 @@ template <typename F>
 class fjnative_of_function : public fjnative {
 public:
 
-  fjnative_of_function(const F& f) : f(f) { }
+  fjnative_of_function(const F& f) : fjnative(), f(f) { }
 
   F f;
 
@@ -365,11 +369,6 @@ public:
     f();
   }
 };
-
-template <class F>
-fjnative_of_function<F>* new_fjnative_of_function(const F& f) {
-  return new fjnative_of_function<F>(f);
-}
 
 template <class F1, class F2>
 void fork2(const F1& f1, const F2& f2) {
@@ -379,9 +378,9 @@ void fork2(const F1& f1, const F2& f2) {
 #else
   auto f = current_fiber.mine();
   assert(f != nullptr);
-  auto fp1 = new_fjnative_of_function(f1);
-  auto fp2 = new_fjnative_of_function(f2);
-  f->fork2(fp1, fp2);
+  fjnative_of_function<F1> fj1(f1);
+  fjnative_of_function<F2> fj2(f2);
+  f->fork2(&fj1, &fj2);
 #endif
 }
 
@@ -416,12 +415,14 @@ void launch0(int argc, char** argv,
   double elapsed;
   clock::time_point_type start_time;
   Logging::initialize();
+  fjnative_of_function<Bench_pre> fj_pre(bench_pre);
+  auto f_pre = &fj_pre;
+  fjnative_of_function fj_cont([&] {
+    elapsed = clock::since(start_time);
+    bench_post();
+  });
+  auto f_cont = &fj_cont;
   {
-    auto f_pre = new_fjnative_of_function(bench_pre);
-    auto f_cont = new_fjnative_of_function([&] {
-      elapsed = clock::since(start_time);
-      bench_post();
-    });
     auto f_term = new terminal_fiber<Scheduler_configuration>;
     fiber<Scheduler_configuration>::add_edge(f_pre, f_body);
     fiber<Scheduler_configuration>::add_edge(f_body, f_cont);
@@ -448,10 +449,11 @@ void launch(int argc, char** argv,
             const Bench_pre& bench_pre,
             const Bench_post& bench_post,
             const Bench_body& bench_body) {
-  auto f_body = new_fjnative_of_function([&] {
+  fjnative_of_function fj_body([&] {
     started = true;
     bench_body();
   });
+  auto f_body = &fj_body;
   launch0<basic_scheduler_configuration, basic_stats, basic_logging, Bench_pre, Bench_post>(argc, argv, bench_pre, bench_post, f_body);
 }
 

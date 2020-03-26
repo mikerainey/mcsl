@@ -264,9 +264,11 @@ public:
             } else if (s == fiber_status_pause) {
               // do nothing
             } else if (s == fiber_status_finish) {
-              delete current;
+              current->finish();
             } else {
               assert(s == fiber_status_terminate);
+              current->finish();
+              current = nullptr;
               status = scheduler_status_finish;
               should_terminate = true;
             }

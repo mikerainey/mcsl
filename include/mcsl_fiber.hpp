@@ -20,12 +20,7 @@ public:
   fiber() : incounter(1), outedge(nullptr) { }
 
   ~fiber() {
-    assert(is_ready());
-    auto f = outedge;
-    outedge = nullptr;
-    if (f != nullptr) {
-      f->release();
-    }
+    assert(outedge == nullptr);
   }
 
   virtual
@@ -57,6 +52,22 @@ public:
     assert(src->outedge == nullptr);
     src->outedge = dst;
     dst->incounter++;
+  }
+
+  virtual
+  void notify() {
+    assert(is_ready());
+    auto fo = outedge;
+    outedge = nullptr;
+    if (fo != nullptr) {
+      fo->release();
+    }
+  }
+
+  virtual
+  void finish() {
+    notify();
+    delete this;
   }
 
 };

@@ -218,16 +218,14 @@ public:
       fiber_type* current = nullptr;
       while (current == nullptr) {
         auto k = random_other_worker(nb_workers, my_id);
-        if (! deques[k].empty()) {
-          termination_barrier.set_active(true);
-          current = deques[k].steal();
-          if (current == nullptr) {
-	    std::this_thread::yield();
-            termination_barrier.set_active(false);
-          } else {
-            Stats::increment(Stats::configuration_type::nb_steals);
-          }
-        }
+	termination_barrier.set_active(true);
+	current = deques[k].steal();
+	if (current == nullptr) {
+	  std::this_thread::yield();
+	  termination_barrier.set_active(false);
+	} else {
+	  Stats::increment(Stats::configuration_type::nb_steals);
+	}
         if (termination_barrier.is_terminated() || should_terminate) {
           assert(current == nullptr);
           Stats::on_exit_acquire(sa);
@@ -258,7 +256,7 @@ public:
             } else if (s == fiber_status_pause) {
               // do nothing
             } else if (s == fiber_status_finish) {
-              current->finish();
+	      current->finish();
             } else {
               assert(s == fiber_status_terminate);
               current->finish();

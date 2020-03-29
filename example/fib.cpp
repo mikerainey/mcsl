@@ -74,6 +74,14 @@ int main(int argc, char** argv) {
   int64_t n = 30;
   int64_t dst = 0;
 
+  /*
+    deepsea::cmdline::set(argc, argv);
+    n = deepsea::cmdline::parse_or_default_int("n", n);
+  auto bench_pre = [&] { };
+    auto bench_post = [] {};
+    auto f_body = new fib_fiber<mcsl::basic_scheduler_configuration>(n, &dst);
+    mcsl::launch0<mcsl::basic_scheduler_configuration, mcsl::basic_stats, mcsl::basic_logging, decltype(bench_pre), decltype(bench_post)>(argc, argv, bench_pre, bench_post, f_body);
+    return 0; */
   mcsl::launch(argc, argv,
                [&] {
                  n = deepsea::cmdline::parse_or_default_int("n", n);

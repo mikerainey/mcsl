@@ -14,115 +14,109 @@ namespace mcsl {
 /*---------------------------------------------------------------------*/
 /* Chase-Lev Work-Stealing Deque data structure  */
 
-template <typename T>
-class chaselev_deque {
-private:
-    
-  class circular_array {
-  private:
+// Deque from Arora, Blumofe, and Plaxton (SPAA, 1998).
+template <typename Job>
+struct chase_lev_deque {
+  using qidx = unsigned int;
+  using tag_t = unsigned int;
 
-    cache_aligned_array<std::atomic<T*>> items;
-
-    std::unique_ptr<circular_array> previous;
-
-  public:
-
-    circular_array(std::size_t size) : items(size) { }
-
-    std::size_t size() const {
-      return items.size();
-    }
-
-    T* get(std::size_t i) {
-      return items[i & (size() - 1)].load(std::memory_order_relaxed);
-    }
-
-    void put(std::size_t i, T* x) {
-      items[i & (size() - 1)].store(x, std::memory_order_relaxed);
-    }
-
-    circular_array* grow(std::size_t top, std::size_t bottom) {
-      circular_array* new_array = new circular_array(size() * 2);
-      new_array->previous.reset(this);
-      for (auto i = top; i != bottom; ++i) {
-        new_array->put(i, get(i));
-      }
-      return new_array;
-    }
-
+  // use unit for atomic access
+  union age_t {
+    struct {
+      tag_t tag;
+      qidx top;
+    } pair;
+    size_t unit;
   };
 
-  std::atomic<circular_array*> array;
-  
-  std::atomic<std::size_t> top, bottom;
+  // align to avoid false sharing
+  struct alignas(64) padded_job { Job* job;  };
 
-public:
+  static int
+  const q_size = 200;
+  age_t age;
+  qidx bot;
+  padded_job deq[q_size];
 
-  chaselev_deque()
-    : array(new circular_array(32)), top(0), bottom(0) { }
-
-  ~chaselev_deque() {
-    auto p = array.load(std::memory_order_relaxed);
-    if (p) {
-      delete p;
-    }
+  inline bool cas(size_t* ptr, size_t oldv, size_t newv) {
+    return __sync_bool_compare_and_swap(ptr, oldv, newv);
   }
 
-  std::size_t size() {
-    return (std::size_t)bottom.load() - top.load();
+  inline void fence() {
+    std::atomic_thread_fence(std::memory_order_seq_cst);
+  }
+
+  chase_lev_deque() : bot(0) {
+    age.pair.tag = 0;
+    age.pair.top = 0;
   }
 
   bool empty() {
-    return size() == 0;
+    return bot == 0;
   }
 
-  void push(T* x) {
-    auto b = bottom.load(std::memory_order_relaxed);
-    auto t = top.load(std::memory_order_acquire);
-    auto a = array.load(std::memory_order_relaxed);
-    if (b - t > a->size() - 1) {
-      a = a->grow(t, b);
-      array.store(a, std::memory_order_relaxed);
+  void push(Job* job) {
+    qidx local_bot;
+    local_bot = bot; // atomic load
+    deq[local_bot].job = job; // shared store
+    local_bot += 1;
+    if (local_bot == q_size)
+      throw std::runtime_error("internal error: scheduler queue overflow");
+    bot = local_bot; // shared store
+    fence();
+  }
+
+  Job* steal() {
+    age_t old_age, new_age;
+    qidx local_bot;
+    Job *job, *result;
+    old_age.unit = age.unit; // atomic load
+
+    local_bot = bot; // atomic load
+    if (local_bot <= old_age.pair.top)
+      result = NULL;
+    else {
+      job = deq[old_age.pair.top].job; // atomic load
+      new_age.unit = old_age.unit;
+      new_age.pair.top = new_age.pair.top + 1;
+      if (cas(&(age.unit), old_age.unit, new_age.unit))  // cas
+	result = job;
+      else
+	result = NULL;
     }
-    a->put(b, x);
-    std::atomic_thread_fence(std::memory_order_release);
-    bottom.store(b + 1, std::memory_order_relaxed);
+    return result;
   }
 
-  T* pop() {
-    auto b = bottom.load(std::memory_order_relaxed) - 1;
-    auto a = array.load(std::memory_order_relaxed);
-    bottom.store(b, std::memory_order_relaxed);
-    std::atomic_thread_fence(std::memory_order_seq_cst);
-    auto t = top.load(std::memory_order_relaxed);
-    if (t <= b) {
-      T* x = a->get(b);
-      if (t == b) {
-        if (!top.compare_exchange_strong(t, t + 1, std::memory_order_seq_cst, std::memory_order_relaxed)) {
-          x = nullptr;
-        }
-        bottom.store(b + 1, std::memory_order_relaxed);
+  Job* pop() {
+    age_t old_age, new_age;
+    qidx local_bot;
+    Job *job, *result;
+    local_bot = bot; // atomic load
+    if (local_bot == 0)
+      result = NULL;
+    else {
+      local_bot = local_bot - 1;
+      bot = local_bot; // shared store
+      fence();
+      job = deq[local_bot].job; // atomic load
+      old_age.unit = age.unit; // atomic load
+      if (local_bot > old_age.pair.top)
+	result = job;
+      else {
+	bot = 0; // shared store
+	new_age.pair.top = 0;
+	new_age.pair.tag = old_age.pair.tag + 1;
+	if ((local_bot == old_age.pair.top) &&
+	    cas(&(age.unit), old_age.unit, new_age.unit))
+	  result = job;
+	else {
+	  age.unit = new_age.unit; // shared store
+	  result = NULL;
+	}
+	fence();
       }
-      return x;
-    } else {
-      bottom.store(b + 1, std::memory_order_relaxed);
-      return nullptr;
     }
-  }
-
-  T* steal() {
-    auto t = top.load(std::memory_order_acquire);
-    std::atomic_thread_fence(std::memory_order_seq_cst);
-    auto b = bottom.load(std::memory_order_acquire);
-    T* x = nullptr;
-    if (t < b) {
-      auto a = array.load(std::memory_order_relaxed);
-      x = a->get(t);
-      if (!top.compare_exchange_strong(t, t + 1, std::memory_order_seq_cst, std::memory_order_relaxed)) {
-        return nullptr;
-      }
-    }
-    return x;
+    return result;
   }
 
 };
@@ -147,7 +141,7 @@ private:
 
   using fiber_type = Fiber<Scheduler_configuration>;
 
-  using cl_deque_type = chaselev_deque<fiber_type>;
+  using cl_deque_type = chase_lev_deque<fiber_type>;
 
   using buffer_type = std::deque<fiber_type*>;
 
@@ -223,12 +217,12 @@ public:
       auto my_id = perworker::unique_id::get_my_id();
       fiber_type* current = nullptr;
       while (current == nullptr) {
-        std::this_thread::yield();
         auto k = random_other_worker(nb_workers, my_id);
         if (! deques[k].empty()) {
           termination_barrier.set_active(true);
           current = deques[k].steal();
           if (current == nullptr) {
+	    std::this_thread::yield();
             termination_barrier.set_active(false);
           } else {
             Stats::increment(Stats::configuration_type::nb_steals);
@@ -268,7 +262,6 @@ public:
             } else {
               assert(s == fiber_status_terminate);
               current->finish();
-              current = nullptr;
               status = scheduler_status_finish;
               should_terminate = true;
             }
@@ -307,9 +300,7 @@ public:
     }
     pthreads[0] = pthread_self();
     Scheduler_configuration::launch_ping_thread(nb_workers, pthreads);
-    Logging::log_event(enter_algo);
     worker_loop();
-    Logging::log_event(exit_algo);
   }
 
   static

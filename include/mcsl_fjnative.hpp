@@ -419,6 +419,7 @@ void launch0(int argc, char** argv,
   auto f_pre = &fj_pre;
   fjnative_of_function fj_cont([&] {
     elapsed = clock::since(start_time);
+    Logging::log_event(exit_algo);
     bench_post();
   });
   auto f_cont = &fj_cont;
@@ -451,6 +452,7 @@ void launch(int argc, char** argv,
             const Bench_body& bench_body) {
   fjnative_of_function fj_body([&] {
     started = true;
+    basic_logging::log_event(enter_algo);
     bench_body();
   });
   auto f_body = &fj_body;

@@ -5,9 +5,11 @@
 #include <deque>
 #include <thread>
 #include <condition_variable>
+#include <iostream>
 
 #include "mcsl_stats.hpp"
 #include "mcsl_logging.hpp"
+#include "mcsl_elastic.hpp"
 
 namespace mcsl {
   
@@ -150,8 +152,8 @@ using fiber_status_type = enum fiber_status_enum {
 using random_number_seed_type = uint64_t;
   
 template <typename Scheduler_configuration,
-	  template <typename> typename Fiber,
-	  typename Stats, typename Logging>
+          template <typename> typename Fiber,
+          typename Stats, typename Logging>
 class chase_lev_work_stealing_scheduler {
 private:
 
@@ -169,6 +171,9 @@ private:
 
   static
   perworker::array<random_number_seed_type> random_number_generators;
+
+  static
+  perworker::array<ElasticSchedFields> elastic;
 
   static
   std::size_t random_other_worker(size_t nb_workers, size_t my_id) {
@@ -209,12 +214,10 @@ private:
   using termination_detection_barrier_type = typename Scheduler_configuration::termination_detection_barrier_type;
   
 public:
-
-  static
-  void launch(std::size_t nb_workers) {
+  static void launch(std::size_t nb_workers) {
     bool should_terminate = false;
     termination_detection_barrier_type termination_barrier;
-    
+
     std::size_t nb_workers_exited = 0;
     std::mutex exit_lock;
     std::condition_variable exit_condition_variable;
@@ -222,6 +225,16 @@ public:
     using scheduler_status_type = enum scheduler_status_enum {
       scheduler_status_active,
       scheduler_status_finish
+    };
+
+    auto wakeChildren = [&] {
+        auto my_id = perworker::unique_id::get_my_id();
+        auto status = elastic[my_id].status.setBusyBit();
+        auto idx = status.bits.head;
+        while (idx != my_id) {
+            sem_post(&elastic[idx].sem);
+            idx = elastic[idx].next;
+        }
     };
 
     auto acquire = [&] {
@@ -233,25 +246,58 @@ public:
       auto sa = Stats::on_enter_acquire();
       termination_barrier.set_active(false);
       auto my_id = perworker::unique_id::get_my_id();
-      fiber_type* current = nullptr;
+      fiber_type *current = nullptr;
+      auto& rn = random_number_generators.mine();
+      rn = hash(rn);
+    //   std::cerr << "Clear status.\n";
+      elastic[my_id].status.clear(rn, my_id);
       while (current == nullptr) {
-        auto k = random_other_worker(nb_workers, my_id);
-	termination_barrier.set_active(true);
-        if (! deques[k].empty()) {
-          current = deques[k].steal();
-          if (current == nullptr) {
-            std::this_thread::yield();
-            termination_barrier.set_active(false);
-          } else {
-            Stats::increment(Stats::configuration_type::nb_steals);
-          }
-        }
-        if (termination_barrier.is_terminated() || should_terminate) {
-          assert(current == nullptr);
-          Stats::on_exit_acquire(sa);
-          Logging::log_event(exit_wait);
-          return scheduler_status_finish;
-        }
+            auto k = random_other_worker(nb_workers, my_id);
+            if (k == my_id) continue; // Must not try to attach lifeline to myself
+            termination_barrier.set_active(true);
+            if (!deques[k].empty()) {
+                current = deques[k].steal();
+                if (current == nullptr) {
+                    // TODO: Should we still yield()? It should be fine right?
+                    // std::this_thread::yield();
+                    termination_barrier.set_active(false);
+                } else {
+                    Stats::increment(Stats::configuration_type::nb_steals);
+                }
+            }
+            if (current == nullptr) { 
+                // For whatever reason we failed to steal from our victim
+                // It is possible that we are in this branch because the steal failed
+                // due to contention instead of empty queue. However we are still safe 
+                // because of the busy bit.
+                auto target_status = elastic[k].status.load();
+                auto my_status     = elastic[my_id].status.load();
+                if ((!target_status.bits.busybit) && 
+                     target_status.bits.priority > my_status.bits.priority
+                   ){
+                    elastic[my_id].next = target_status.bits.head;
+                    // It's safe to just leave it in the array even if the following
+                    // CAS fails because it will never be referenced in case of failure.
+                    if (elastic[k].status.casHead(target_status, my_id)) {
+                        // Wait on my own semaphore
+                        // std::cerr << my_id << " went to sleep.\n";
+                        sem_wait(&elastic[my_id].sem);
+                        // std::cerr << my_id << " awake.\n";
+
+                        // TODO: Add support for CRS
+                    } // Otherwise we just give up
+                }
+            } else {
+                // We succeeded in stealing, let's start to wake people up
+                wakeChildren();
+            }
+            if (termination_barrier.is_terminated() || should_terminate) {
+                assert(current == nullptr);
+                wakeChildren();
+                Stats::on_exit_acquire(sa);
+                Logging::log_event(exit_wait);
+                return scheduler_status_finish;
+            }
       }
       assert(current != nullptr);
       buffers.mine().push_back(current);
@@ -262,12 +308,12 @@ public:
 
     auto worker_loop = [&] {
       Scheduler_configuration::initialize_worker();
-      auto& my_deque = deques.mine();
+      auto &my_deque = deques.mine();
       scheduler_status_type status = scheduler_status_active;
-      fiber_type* current = nullptr;
+      fiber_type *current = nullptr;
       while (status == scheduler_status_active) {
         current = flush();
-        while ((current != nullptr) || ! my_deque.empty()) {
+        while ((current != nullptr) || !my_deque.empty()) {
           current = (current == nullptr) ? my_deque.pop() : current;
           if (current != nullptr) {
             auto s = current->exec();
@@ -276,12 +322,13 @@ public:
             } else if (s == fiber_status_pause) {
               // do nothing
             } else if (s == fiber_status_finish) {
-	      current->finish();
+              current->finish();
             } else {
               assert(s == fiber_status_terminate);
               current->finish();
               status = scheduler_status_finish;
               should_terminate = true;
+              wakeChildren();
             }
             current = flush();
           }
@@ -294,15 +341,27 @@ public:
         std::unique_lock<std::mutex> lk(exit_lock);
         auto nb = ++nb_workers_exited;
         if (perworker::unique_id::get_my_id() == 0) {
-          exit_condition_variable.wait(lk, [&] { return nb_workers_exited == nb_workers; });
+          exit_condition_variable.wait(
+              lk, [&] { return nb_workers_exited == nb_workers; });
         } else if (nb == nb_workers) {
           exit_condition_variable.notify_one();
         }
       }
     };
 
+
+    // Initializations
+    
     for (std::size_t i = 0; i < random_number_generators.size(); ++i) {
       random_number_generators[i] = hash(i);
+    }
+    
+    for (std::size_t i = 0; i < elastic.size(); ++i) {
+        auto& rn = random_number_generators[i];
+        rn = hash(rn);
+        elastic[i].status.clear(rn, i);  // Use the rng to initialize priority
+        sem_init(&elastic[i].sem, 0, 0); // Initialize the semaphore
+        // We don't really care what next points to at this moment
     }
 
     Scheduler_configuration::initialize_signal_handler();
@@ -353,40 +412,50 @@ public:
 template <typename Scheduler_configuration,
           template <typename> typename Fiber,
           typename Stats, typename Logging>
-perworker::array<typename chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::cl_deque_type> chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::deques;
+perworker::array<typename chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::cl_deque_type> 
+chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::deques;
 
 template <typename Scheduler_configuration,
           template <typename> typename Fiber,
           typename Stats, typename Logging>
-perworker::array<typename chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::buffer_type> chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::buffers;
+perworker::array<typename chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::buffer_type> 
+chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::buffers;
 
 template <typename Scheduler_configuration,
           template <typename> typename Fiber,
           typename Stats, typename Logging>
-perworker::array<random_number_seed_type> chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::random_number_generators;
+perworker::array<random_number_seed_type> 
+chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::random_number_generators;
 
 template <typename Scheduler_configuration,
-	  template <typename> typename Fiber,
-	  typename Stats, typename Logging>
-perworker::array<pthread_t> chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::pthreads;
+          template <typename> typename Fiber,
+          typename Stats, typename Logging>
+perworker::array<pthread_t> 
+chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::pthreads;
 
 template <typename Scheduler_configuration,
-	  template <typename> typename Fiber,
-	  typename Stats, typename Logging>
+          template <typename> typename Fiber,
+          typename Stats, typename Logging>
+perworker::array<ElasticSchedFields> 
+chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::elastic;
+
+template <typename Scheduler_configuration,
+          template <typename> typename Fiber,
+          typename Stats, typename Logging>
 Fiber<Scheduler_configuration>* take() {
   return chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::take();  
 }
 
 template <typename Scheduler_configuration,
-	  template <typename> typename Fiber,
-	  typename Stats, typename Logging>
+          template <typename> typename Fiber,
+          typename Stats, typename Logging>
 void schedule(Fiber<Scheduler_configuration>* f) {
   chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::schedule(f);  
 }
 
 template <typename Scheduler_configuration,
-	  template <typename> typename Fiber,
-	  typename Stats, typename Logging>
+          template <typename> typename Fiber,
+          typename Stats, typename Logging>
 void commit() {
   chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::commit();
 }

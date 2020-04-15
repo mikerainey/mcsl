@@ -24,6 +24,8 @@ using event_tag_type = enum event_tag_type_enum {
   enter_launch = 0,   exit_launch,
   enter_algo,         exit_algo,
   enter_wait,         exit_wait,
+  enter_sleep,        exit_sleep,
+  wake_child,
   worker_communicate, interrupt,
   algo_phase,
   program_point,
@@ -38,6 +40,11 @@ std::string name_of(event_tag_type e) {
     case enter_algo:     return "enter_algo ";
     case exit_algo:      return "exit_algo ";
     case enter_wait:     return "enter_wait ";
+    case exit_wait:      return "exit_wait ";
+    case enter_sleep:    return "enter_sleep ";
+    case exit_sleep:     return "exit_sleep ";
+    case wake_child:     return "wake_child ";
+    case algo_phase:     return "algo_phase";
     default:             return "unknown_event ";
   }
 }
@@ -50,6 +57,9 @@ event_kind_type kind_of(event_tag_type e) {
     case exit_algo:
     case enter_wait:
     case exit_wait:
+    case enter_sleep:
+    case exit_sleep:
+    case wake_child:
     case algo_phase:                return phases;
     case program_point:             return program;
     default:                        return nb_kinds;
@@ -95,6 +105,12 @@ public:
   
   union extra_union {
     program_point_type ppt;
+    size_t child_id;
+    struct enter_sleep_struct {
+      size_t parent_id;
+      size_t prio_child;
+      size_t prio_parent;
+    } enter_sleep;
   } extra;
       
   void print_byte(FILE* f) {
@@ -111,6 +127,17 @@ public:
                 extra.ppt.source_fname,
                 extra.ppt.line_nb,
                 extra.ppt.ptr);
+        break;
+      }
+      case wake_child: {
+        fprintf(f, "%ld", extra.child_id);
+        break;
+      }
+      case enter_sleep: {
+        fprintf(f, "%ld \t %ld \t %ld",
+                extra.enter_sleep.parent_id,
+                extra.enter_sleep.prio_child,
+                extra.enter_sleep.prio_parent);
         break;
       }
       default: {
@@ -201,6 +228,22 @@ public:
     push(event_type(tag));
   }
 
+  static inline
+  void log_wake_child(size_t child_id) {
+    event_type e(wake_child);
+    e.extra.child_id = child_id;
+    push(e);
+  }
+
+  static inline
+  void log_enter_sleep(size_t parent_id, size_t prio_child, size_t prio_parent) {
+    event_type e(enter_sleep);
+    e.extra.enter_sleep.parent_id = parent_id;
+    e.extra.enter_sleep.prio_child = prio_child;
+    e.extra.enter_sleep.prio_parent = prio_parent;
+    push(e);
+  }
+
   static constexpr
   const char* dflt_log_bytes_fname = "LOG_BIN";
 
@@ -244,6 +287,9 @@ public:
 
   static
   void output() {
+    if (! enabled) {
+      return;
+    }
     push(event_type(exit_launch));
     for (auto i = 0; i < nb_ppts; i++) {
       event_type e(program_point);
@@ -283,7 +329,7 @@ program_point_type logging_base<enabled>::ppts[max_nb_ppts];
 
 template <bool enabled>
 clock::time_point_type logging_base<enabled>::basetime;
-
+  
   /*
 static inline
 void log_program_point(int line_nb,

@@ -68,9 +68,6 @@ public:
       uint64_t expected = word.asUint64;
       auto word2 = word;
       word2.bits.head = newHead; // Update only the head field
-      aprintf("expected.bits.priority=%ld word.bits.priority=%ld\n",
-              word.bits.priority,
-              word2.bits.priority);
       return statusWord.compare_exchange_weak(expected, word2.asUint64);
     }
 
@@ -319,15 +316,16 @@ public:
         termination_barrier.set_active(false);
         return scheduler_status_finish;
       }
+      auto my_id = perworker::unique_id::get_my_id();
+      auto& rn = random_number_generators.mine();
+      rn = hash(rn);
+      elastic[my_id].status.clear(rn, my_id);
       Logging::log_event(enter_wait);
       auto sa = Stats::on_enter_acquire();
       termination_barrier.set_active(false);
-      auto my_id = perworker::unique_id::get_my_id();
       fiber_type *current = nullptr;
-      auto& rn = random_number_generators.mine();
-      rn = hash(rn);
     //   std::cerr << "Clear status.\n";
-      elastic[my_id].status.clear(rn, my_id);
+
       while (current == nullptr) {
             auto k = random_other_worker(nb_workers, my_id);
             if (k == my_id) continue; // Must not try to attach lifeline to myself
@@ -439,6 +437,7 @@ public:
         auto& rn = random_number_generators[i];
         rn = hash(rn);
         elastic[i].status.clear(rn, i);  // Use the rng to initialize priority
+        elastic[i].status.setBusyBit();
         sem_init(&elastic[i].sem, 0, 0); // Initialize the semaphore
         // We don't really care what next points to at this moment
     }

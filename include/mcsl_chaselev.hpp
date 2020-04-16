@@ -31,6 +31,7 @@ union status_word {
   // 3) updateHead() may fail. It's upto the caller to verify that the
   //    operations succeeded. This is to ensure that the operation completes
   //    in bounded number of steps.
+  // Invariant: If a worker is busy, its head field points to itself
 class AtomicStatusWord {
     std::atomic<uint64_t> statusWord;
 
@@ -47,12 +48,17 @@ public:
     // 1) Unsets the busy bit
     // 2) Hashes and obtain a new priority
     // 3) Resets the head value
-    void clear(uint64_t prio, uint8_t nullaryHead) {
+    void clear(uint64_t prio, uint8_t nullaryHead, bool isBusy=false) {
       status_word word = {UINT64_C(0)};
-      word.bits.busybit  = 0u;   // Not busy
+      word.bits.busybit  = isBusy;   // Not busy
       word.bits.priority = prio; 
       word.bits.head     = nullaryHead;
       statusWord.store(word.asUint64);
+    }
+
+    void clear(std::function<uint64_t(void)> rng, uint8_t nullary, bool isBusy=false) {
+        auto prio = rng();
+        clear(prio, nullary, isBusy);
     }
 
     // Sets busy bit and returns the old status word
@@ -300,15 +306,22 @@ public:
       scheduler_status_finish
     };
 
-    auto wakeChildren = [&] {
+    // Busybit is set separately, this function only traverses and wakes people up
+    auto wakeChildren = [&]() {
         auto my_id = perworker::unique_id::get_my_id();
-        auto status = elastic[my_id].status.setBusyBit();
+        auto status = elastic.mine().status.load();
         auto idx = status.bits.head;
         while (idx != my_id) {
-          Logging::log_wake_child(idx);
+            Logging::log_wake_child(idx);
             sem_post(&elastic[idx].sem);
             idx = elastic[idx].next;
         }
+    };
+
+    auto randMyRng = [&] {
+        auto& rn = random_number_generators.mine();
+        rn = hash(rn);
+        return rn;
     };
 
     auto acquire = [&] {
@@ -317,9 +330,6 @@ public:
         return scheduler_status_finish;
       }
       auto my_id = perworker::unique_id::get_my_id();
-      auto& rn = random_number_generators.mine();
-      rn = hash(rn);
-      elastic[my_id].status.clear(rn, my_id);
       Logging::log_event(enter_wait);
       auto sa = Stats::on_enter_acquire();
       termination_barrier.set_active(false);
@@ -351,12 +361,14 @@ public:
               // Wait on my own semaphore
               Logging::log_enter_sleep(k, target_status.bits.priority, my_status.bits.priority);
               sem_wait(&elastic[my_id].sem);
+              elastic[my_id].status.clear(randMyRng, my_id, true);
               Logging::log_event(exit_sleep);
               // TODO: Add support for CRS
             } // Otherwise we just give up
           }
         } else {
           // We succeeded in stealing, let's start to wake people up
+          elastic.mine().status.setBusyBit();
           wakeChildren();
         }
         if (termination_barrier.is_terminated() || should_terminate) {
@@ -425,10 +437,9 @@ public:
     }
     
     for (std::size_t i = 0; i < elastic.size(); ++i) {
-        auto& rn = random_number_generators[i];
-        rn = hash(rn);
-        elastic[i].status.clear(rn, i);  // Use the rng to initialize priority
-        elastic[i].status.setBusyBit();
+        // We need to start off by setting everyone as busy
+        // Using the first processor's rng to initialize everyone's prio seems fine
+        elastic[i].status.clear(randMyRng, i, true);  
         sem_init(&elastic[i].sem, 0, 0); // Initialize the semaphore
         // We don't really care what next points to at this moment
     }

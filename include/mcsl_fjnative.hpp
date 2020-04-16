@@ -430,8 +430,8 @@ void launch0(int argc, char** argv,
     fiber<Scheduler_configuration>::add_edge(f_cont, f_term);
     start_time = clock::now();
     f_pre->release();
-    f_cont->release();
     f_body->release();
+    f_cont->release();
     f_term->release();
   }
   using scheduler_type = chase_lev_work_stealing_scheduler<Scheduler_configuration, fiber, Stats, Logging>;

@@ -324,57 +324,48 @@ public:
       auto sa = Stats::on_enter_acquire();
       termination_barrier.set_active(false);
       fiber_type *current = nullptr;
-    //   std::cerr << "Clear status.\n";
-
       while (current == nullptr) {
-            auto k = random_other_worker(nb_workers, my_id);
-            if (k == my_id) continue; // Must not try to attach lifeline to myself
-            termination_barrier.set_active(true);
-            if (!deques[k].empty()) {
-                current = deques[k].steal();
-                if (current == nullptr) {
-                    // TODO: Should we still yield()? It should be fine right?
-                    // std::this_thread::yield();
-                    termination_barrier.set_active(false);
-                } else {
-                    Stats::increment(Stats::configuration_type::nb_steals);
-                }
-            }
-            if (current == nullptr) { 
-                // For whatever reason we failed to steal from our victim
-                // It is possible that we are in this branch because the steal failed
-                // due to contention instead of empty queue. However we are still safe 
-                // because of the busy bit.
-                auto target_status = elastic[k].status.load();
-                auto my_status     = elastic[my_id].status.load();
-                if ((!target_status.bits.busybit) && 
-                    (target_status.bits.priority > my_status.bits.priority)
-                   ){
-                    elastic[my_id].next = target_status.bits.head;
-                    // It's safe to just leave it in the array even if the following
-                    // CAS fails because it will never be referenced in case of failure.
-                    if (elastic[k].status.casHead(target_status, my_id)) {
-                        // Wait on my own semaphore
-                        // std::cerr << my_id << " went to sleep.\n";
-                      Logging::log_enter_sleep(k, target_status.bits.priority, my_status.bits.priority);
-                        sem_wait(&elastic[my_id].sem);
-                        Logging::log_event(exit_sleep);
-                        // std::cerr << my_id << " awake.\n";
-
-                        // TODO: Add support for CRS
-                    } // Otherwise we just give up
-                }
-            } else {
-                // We succeeded in stealing, let's start to wake people up
-                wakeChildren();
-            }
-            if (termination_barrier.is_terminated() || should_terminate) {
-                assert(current == nullptr);
-                wakeChildren();
-                Stats::on_exit_acquire(sa);
-                Logging::log_event(exit_wait);
-                return scheduler_status_finish;
-            }
+        auto k = random_other_worker(nb_workers, my_id);
+        termination_barrier.set_active(true);
+        if (!deques[k].empty()) {
+          current = deques[k].steal();
+          if (current == nullptr) {
+            termination_barrier.set_active(false);
+          } else {
+            Stats::increment(Stats::configuration_type::nb_steals);
+          }
+        }
+        if (current == nullptr) { 
+          // For whatever reason we failed to steal from our victim
+          // It is possible that we are in this branch because the steal failed
+          // due to contention instead of empty queue. However we are still safe 
+          // because of the busy bit.
+          auto target_status = elastic[k].status.load();
+          auto my_status = elastic[my_id].status.load();
+          if ((!target_status.bits.busybit) && 
+              (target_status.bits.priority > my_status.bits.priority)){
+            elastic[my_id].next = target_status.bits.head;
+            // It's safe to just leave it in the array even if the following
+            // CAS fails because it will never be referenced in case of failure.
+            if (elastic[k].status.casHead(target_status, my_id)) {
+              // Wait on my own semaphore
+              Logging::log_enter_sleep(k, target_status.bits.priority, my_status.bits.priority);
+              sem_wait(&elastic[my_id].sem);
+              Logging::log_event(exit_sleep);
+              // TODO: Add support for CRS
+            } // Otherwise we just give up
+          }
+        } else {
+          // We succeeded in stealing, let's start to wake people up
+          wakeChildren();
+        }
+        if (termination_barrier.is_terminated() || should_terminate) {
+          assert(current == nullptr);
+          wakeChildren();
+          Stats::on_exit_acquire(sa);
+          Logging::log_event(exit_wait);
+          return scheduler_status_finish;
+        }
       }
       assert(current != nullptr);
       buffers.mine().push_back(current);

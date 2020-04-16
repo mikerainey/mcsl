@@ -24,7 +24,7 @@ using event_tag_type = enum event_tag_type_enum {
   enter_launch = 0,   exit_launch,
   enter_algo,         exit_algo,
   enter_wait,         exit_wait,
-  enter_sleep,        exit_sleep,
+  enter_sleep,        exit_sleep,     failed_to_sleep,
   wake_child,
   worker_communicate, interrupt,
   algo_phase,
@@ -42,6 +42,7 @@ std::string name_of(event_tag_type e) {
     case enter_wait:     return "enter_wait ";
     case exit_wait:      return "exit_wait ";
     case enter_sleep:    return "enter_sleep ";
+    case failed_to_sleep:return "failed_to_sleep ";
     case exit_sleep:     return "exit_sleep ";
     case wake_child:     return "wake_child ";
     case algo_phase:     return "algo_phase";
@@ -58,6 +59,7 @@ event_kind_type kind_of(event_tag_type e) {
     case enter_wait:
     case exit_wait:
     case enter_sleep:
+    case failed_to_sleep:
     case exit_sleep:
     case wake_child:
     case algo_phase:                return phases;
@@ -111,6 +113,12 @@ public:
       size_t prio_child;
       size_t prio_parent;
     } enter_sleep;
+    struct failed_to_sleep_struct {
+      size_t parent_id;
+      size_t busy_child;
+      size_t prio_child;
+      size_t prio_parent;
+    } failed_to_sleep;
   } extra;
       
   void print_byte(FILE* f) {
@@ -138,6 +146,14 @@ public:
                 extra.enter_sleep.parent_id,
                 extra.enter_sleep.prio_child,
                 extra.enter_sleep.prio_parent);
+        break;
+      }
+      case failed_to_sleep: {
+        fprintf(f, "%ld \t Busy[%ld] \t %ld \t %ld",
+                extra.failed_to_sleep.parent_id,
+                extra.failed_to_sleep.busy_child,
+                extra.failed_to_sleep.prio_child,
+                extra.failed_to_sleep.prio_parent);
         break;
       }
       default: {
@@ -241,6 +257,16 @@ public:
     e.extra.enter_sleep.parent_id = parent_id;
     e.extra.enter_sleep.prio_child = prio_child;
     e.extra.enter_sleep.prio_parent = prio_parent;
+    push(e);
+  }
+
+  static inline
+  void log_failed_to_sleep(size_t parent_id, size_t busybit, size_t prio_child, size_t prio_parent) {
+    event_type e(failed_to_sleep);
+    e.extra.failed_to_sleep.parent_id = parent_id;
+    e.extra.failed_to_sleep.busy_child = busybit;
+    e.extra.failed_to_sleep.prio_child = prio_child;
+    e.extra.failed_to_sleep.prio_parent = prio_parent;
     push(e);
   }
 

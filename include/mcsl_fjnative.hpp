@@ -1,5 +1,8 @@
 #pragma once
 
+#include <sys/time.h>
+#include <sys/resource.h>
+
 #include "mcsl_fiber.hpp"
 #include "mcsl_snzi.hpp"
 
@@ -403,21 +406,33 @@ public:
   }
   
 };
+
+static
+clock::time_point_type start_time;
+
+static
+struct rusage ru_before, ru_after;
+  
+bool started = false;
   
 template <typename Scheduler_configuration, typename Stats, typename Logging,
           typename Bench_pre, typename Bench_post>
-void launch0(int argc, char** argv,
-	     const Bench_pre& bench_pre,
+void launch0(const Bench_pre& bench_pre,
 	     const Bench_post& bench_post,
 	     fiber<Scheduler_configuration>* f_body) {
-  deepsea::cmdline::set(argc, argv);
+  auto double_of_tv = [] (struct timeval tv) {
+    return ((double) tv.tv_sec) + ((double) tv.tv_usec)/1000000.;
+  };
   std::size_t nb_workers = deepsea::cmdline::parse_or_default_int("proc", 1);
   double elapsed;
-  clock::time_point_type start_time;
   Logging::initialize();
-  fjnative_of_function<Bench_pre> fj_pre(bench_pre);
+  fjnative_of_function fj_pre([&] {
+    started = true;
+    bench_pre();
+  });
   auto f_pre = &fj_pre;
   fjnative_of_function fj_cont([&] {
+    getrusage (RUSAGE_SELF, &ru_after);
     elapsed = clock::since(start_time);
     Logging::log_event(exit_algo);
     bench_post();
@@ -428,7 +443,6 @@ void launch0(int argc, char** argv,
     fiber<Scheduler_configuration>::add_edge(f_pre, f_body);
     fiber<Scheduler_configuration>::add_edge(f_body, f_cont);
     fiber<Scheduler_configuration>::add_edge(f_cont, f_term);
-    start_time = clock::now();
     f_pre->release();
     f_body->release();
     f_cont->release();
@@ -439,24 +453,28 @@ void launch0(int argc, char** argv,
   scheduler_type::launch(nb_workers);
   Stats::on_exit_launch();
   printf("exectime %.3f\n", elapsed);
+  printf("usertime  %.3lf\n",
+	 double_of_tv(ru_after.ru_utime) -
+	 double_of_tv(ru_before.ru_utime));
+  printf("systime  %.3lf\n",
+	 double_of_tv(ru_after.ru_stime) -
+	 double_of_tv(ru_before.ru_stime));
   Stats::report();
   Logging::output();
 }
 
-bool started = false;
-
 template <typename Bench_pre, typename Bench_post, typename Bench_body>
-void launch(int argc, char** argv,
-            const Bench_pre& bench_pre,
+void launch(const Bench_pre& bench_pre,
             const Bench_post& bench_post,
             const Bench_body& bench_body) {
   fjnative_of_function fj_body([&] {
-    started = true;
     basic_logging::log_event(enter_algo);
+    getrusage (RUSAGE_SELF, &ru_before);
+    start_time = clock::now();
     bench_body();
   });
   auto f_body = &fj_body;
-  launch0<basic_scheduler_configuration, basic_stats, basic_logging, Bench_pre, Bench_post>(argc, argv, bench_pre, bench_post, f_body);
+  launch0<basic_scheduler_configuration, basic_stats, basic_logging, Bench_pre, Bench_post>(bench_pre, bench_post, f_body);
 }
 
 } // end namespace

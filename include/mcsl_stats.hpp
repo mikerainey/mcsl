@@ -30,6 +30,9 @@ private:
   
   static
   perworker::array<double> all_total_idle_time;
+
+  static
+  perworker::array<double> all_total_sleep_time;
   
 public:
 
@@ -68,6 +71,22 @@ public:
   }
 
   static
+  clock::time_point_type on_enter_sleep() {
+    if (! Configuration::enabled) {
+      return clock::time_point_type();
+    }
+    return clock::now();
+  }
+  
+  static
+  void on_exit_sleep(clock::time_point_type enter_sleep_time) {
+    if (! Configuration::enabled) {
+      return;
+    }
+    all_total_sleep_time.mine() += clock::since(enter_sleep_time);
+  }
+
+  static
   void report() {
     if (! Configuration::enabled) {
       return;
@@ -91,6 +110,11 @@ public:
     double utilization = 1.0 - relative_idle;
     aprintf("total_idle_time %f\n", total_idle_time);
     aprintf("utilization %f\n", utilization);
+    double total_sleep_time = 0.0;
+    for (std::size_t i = 0; i < nb_workers; ++i) {
+      total_sleep_time += all_total_sleep_time[i];
+    }
+    aprintf("total_sleep_time %f\n", total_sleep_time);
   }
 
 };
@@ -106,5 +130,8 @@ double stats_base<Configuration>::launch_duration;
 
 template <typename Configuration>
 perworker::array<double> stats_base<Configuration>::all_total_idle_time;
+
+template <typename Configuration>
+perworker::array<double> stats_base<Configuration>::all_total_sleep_time;
 
 } // end namespace

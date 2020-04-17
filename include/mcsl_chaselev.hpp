@@ -69,6 +69,13 @@ public:
       return word;
     }
 
+    // status_word unsetBusyBit() {
+    //   status_word word = {UINT64_C(-1)}; // Keep all other bits
+    //   word.bits.busybit = 0u;            // I'm going to be busy
+    //   word = {statusWord.fetch_and(word.asUint64)};
+    //   return word;
+    // }
+
     // Update the head field while preserving all other fields
     bool casHead(status_word word, uint8_t newHead) {
       uint64_t expected = word.asUint64;
@@ -76,6 +83,9 @@ public:
       word2.bits.head = newHead; // Update only the head field
       return statusWord.compare_exchange_weak(expected, word2.asUint64);
     }
+
+    // void unsafeUpdateHead(uint8_t newHead) {
+    // }
 
     status_word load() {
       return status_word{statusWord.load()};
@@ -318,9 +328,9 @@ public:
         }
     };
 
-    auto randMyRng = [&] {
+    auto randMyRng = [] () -> uint64_t {
         auto& rn = random_number_generators.mine();
-        rn = hash(rn);
+        rn = hash(uint64_t(rn)); 
         return rn;
     };
 
@@ -333,6 +343,10 @@ public:
       Logging::log_event(enter_wait);
       auto sa = Stats::on_enter_acquire();
       termination_barrier.set_active(false);
+      // 1) Clear the children list 
+      // 2) Start to accept lifelines by unsetting busy bit
+      // 3) Randomly choose a new priority
+      elastic[my_id].status.clear(randMyRng, my_id, false);
       fiber_type *current = nullptr;
       while (current == nullptr) {
         auto k = random_other_worker(nb_workers, my_id);
@@ -362,19 +376,22 @@ public:
               Logging::log_enter_sleep(k, target_status.bits.priority, my_status.bits.priority);
               auto ss = Stats::on_enter_sleep();
               sem_wait(&elastic[my_id].sem);
-              elastic[my_id].status.clear(randMyRng, my_id, true);
+              elastic[my_id].status.setBusyBit();
               Stats::on_exit_sleep(ss);
               Logging::log_event(exit_sleep);
               // TODO: Add support for CRS
             } // Otherwise we just give up
+          } else {
+            Logging::log_failed_to_sleep(k, target_status.bits.busybit, target_status.bits.priority, my_status.bits.priority);
           }
         } else {
           // We succeeded in stealing, let's start to wake people up
-          elastic.mine().status.setBusyBit();
+          elastic[my_id].status.setBusyBit();
           wakeChildren();
         }
         if (termination_barrier.is_terminated() || should_terminate) {
           assert(current == nullptr);
+          // elastic.mine().status.setBusyBit(); // Required for liveness. Why??
           wakeChildren();
           Stats::on_exit_acquire(sa);
           Logging::log_event(exit_wait);
@@ -410,7 +427,8 @@ public:
               current->finish();
               status = scheduler_status_finish;
               should_terminate = true;
-              wakeChildren();
+              // This worker is currently busy, so it has no children!
+              // wakeChildren(); 
             }
             current = flush();
           }
@@ -435,7 +453,8 @@ public:
     // Initializations
     
     for (std::size_t i = 0; i < random_number_generators.size(); ++i) {
-      random_number_generators[i] = hash(i);
+      // The hash function used here has a weired property: 0 == hash(0)
+      random_number_generators[i] = hash(i + 31);
     }
     
     for (std::size_t i = 0; i < elastic.size(); ++i) {

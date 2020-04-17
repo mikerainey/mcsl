@@ -452,13 +452,13 @@ void launch0(const Bench_pre& bench_pre,
   Stats::on_enter_launch();
   scheduler_type::launch(nb_workers);
   Stats::on_exit_launch();
-  printf("exectime %.3f\n", elapsed);
-  printf("usertime  %.3lf\n",
-	 double_of_tv(ru_after.ru_utime) -
-	 double_of_tv(ru_before.ru_utime));
-  printf("systime  %.3lf\n",
-	 double_of_tv(ru_after.ru_stime) -
-	 double_of_tv(ru_before.ru_stime));
+  aprintf("exectime %.3f\n", elapsed);
+  aprintf("usertime  %.3lf\n",
+          double_of_tv(ru_after.ru_utime) -
+          double_of_tv(ru_before.ru_utime));
+  aprintf("systime  %.3lf\n",
+          double_of_tv(ru_after.ru_stime) -
+          double_of_tv(ru_before.ru_stime));
   Stats::report();
   Logging::output();
 }

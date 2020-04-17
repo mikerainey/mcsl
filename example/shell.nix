@@ -6,8 +6,8 @@
   cmdlineSrc ? pkgs.fetchFromGitHub {
     owner  = "deepsea-inria";
     repo   = "cmdline";
-    rev    = "c5f96b4aecb2019b5a690176195d37f7df3ed34b";
-    sha256 = "1rz9bfdd5242gy3vq4n9vj2rcr5pwp0j4cjycpn3pm7rnwrrcjnh";
+    rev    = "67b01773169de11bf04253347dd1087e5863a874";
+    sha256 = "1bzmxdmnp7kn6arv3cy0h4a6xk03y7wdg0mdkayqv5qsisppazmg";
   },
   pviewSrc ? pkgs.fetchFromGitHub {
     owner  = "deepsea-inria";

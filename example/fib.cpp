@@ -82,15 +82,15 @@ int main(int argc, char** argv) {
     auto f_body = new fib_fiber<mcsl::basic_scheduler_configuration>(n, &dst);
     mcsl::launch0<mcsl::basic_scheduler_configuration, mcsl::basic_stats, mcsl::basic_logging, decltype(bench_pre), decltype(bench_post)>(argc, argv, bench_pre, bench_post, f_body);
     return 0; */
-  mcsl::launch(argc, argv,
-               [&] {
-                 n = deepsea::cmdline::parse_or_default_int("n", n);
-               },
-               [&] {
-                 assert(fib_seq(n) == dst);
-                 printf("result %ld\n", dst);
-               }, [&] {
-                 dst = fib_fjnative(n);
-               });
+  
+  mcsl::launch([&] {
+    n = deepsea::cmdline::parse_or_default_int("n", n);
+  },
+  [&] {
+    assert(fib_seq(n) == dst);
+    printf("result %ld\n", dst);
+  }, [&] {
+    dst = fib_fjnative(n);
+  });
   return 0;
 }

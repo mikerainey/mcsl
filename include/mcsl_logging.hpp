@@ -220,10 +220,10 @@ public:
 
   static
   void initialize() {
-    bool real_time = deepsea::cmdline::parse_or_default_bool("log_stdout", false);
+    bool real_time  = deepsea::cmdline::parse_or_default_bool("log_stdout", false);
     bool log_phases = deepsea::cmdline::parse_or_default_bool("log_phases", false);
     bool log_fibers = deepsea::cmdline::parse_or_default_bool("log_fibers", false);
-    bool pview = deepsea::cmdline::parse_or_default_bool("pview", false);
+    bool pview      = deepsea::cmdline::parse_or_default_bool("pview", false);
     _initialize(real_time, log_phases, log_fibers, pview);
   }
   

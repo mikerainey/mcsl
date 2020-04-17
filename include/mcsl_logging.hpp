@@ -64,9 +64,9 @@ event_kind_type kind_of(event_tag_type e) {
     case failed_to_sleep:
     case exit_sleep:
     case wake_child:
-    case algo_phase:                return phases;
     case worker_exit:
     case initiate_teardown:
+    case algo_phase:                return phases;
     case program_point:             return program;
     default:                        return nb_kinds;
   }
@@ -216,10 +216,10 @@ public:
 
   static
   void initialize() {
-    bool real_time = deepsea::cmdline::parse_or_default_bool("log_stdout", false);
+    bool real_time  = deepsea::cmdline::parse_or_default_bool("log_stdout", false);
     bool log_phases = deepsea::cmdline::parse_or_default_bool("log_phases", false);
     bool log_fibers = deepsea::cmdline::parse_or_default_bool("log_fibers", false);
-    bool pview = deepsea::cmdline::parse_or_default_bool("pview", false);
+    bool pview      = deepsea::cmdline::parse_or_default_bool("pview", false);
     _initialize(real_time, log_phases, log_fibers, pview);
   }
   

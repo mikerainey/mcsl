@@ -391,8 +391,8 @@ public:
         }
         if (termination_barrier.is_terminated() || should_terminate) {
           assert(current == nullptr);
-          // elastic.mine().status.setBusyBit(); // Required for liveness. Why??
           Logging::log_event(worker_exit);
+          elastic.mine().status.setBusyBit(); // An exited worker is busy dying.
           wakeChildren();
           Stats::on_exit_acquire(sa);
           Logging::log_event(exit_wait);

@@ -25,7 +25,7 @@ using event_tag_type = enum event_tag_type_enum {
   enter_algo,         exit_algo,
   enter_wait,         exit_wait,
   enter_sleep,        exit_sleep,     failed_to_sleep,
-  wake_child,
+  wake_child,         worker_exit,    initiate_teardown,
   worker_communicate, interrupt,
   algo_phase,
   program_point,
@@ -35,18 +35,20 @@ using event_tag_type = enum event_tag_type_enum {
 static inline
 std::string name_of(event_tag_type e) {
   switch (e) {
-    case enter_launch:   return "enter_launch ";
-    case exit_launch:    return "exit_launch ";
-    case enter_algo:     return "enter_algo ";
-    case exit_algo:      return "exit_algo ";
-    case enter_wait:     return "enter_wait ";
-    case exit_wait:      return "exit_wait ";
-    case enter_sleep:    return "enter_sleep ";
-    case failed_to_sleep:return "failed_to_sleep ";
-    case exit_sleep:     return "exit_sleep ";
-    case wake_child:     return "wake_child ";
-    case algo_phase:     return "algo_phase";
-    default:             return "unknown_event ";
+    case enter_launch:      return "enter_launch ";
+    case exit_launch:       return "exit_launch ";
+    case enter_algo:        return "enter_algo ";
+    case exit_algo:         return "exit_algo ";
+    case enter_wait:        return "enter_wait ";
+    case exit_wait:         return "exit_wait ";
+    case enter_sleep:       return "enter_sleep ";
+    case failed_to_sleep:   return "failed_to_sleep ";
+    case exit_sleep:        return "exit_sleep ";
+    case wake_child:        return "wake_child ";
+    case worker_exit:       return "worker_exit ";
+    case initiate_teardown: return "initiate_teardown";
+    case algo_phase:        return "algo_phase ";
+    default:                return "unknown_event ";
   }
 }
 
@@ -63,6 +65,8 @@ event_kind_type kind_of(event_tag_type e) {
     case exit_sleep:
     case wake_child:
     case algo_phase:                return phases;
+    case worker_exit:
+    case initiate_teardown:
     case program_point:             return program;
     default:                        return nb_kinds;
   }

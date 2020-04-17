@@ -390,6 +390,7 @@ public:
         if (termination_barrier.is_terminated() || should_terminate) {
           assert(current == nullptr);
           // elastic.mine().status.setBusyBit(); // Required for liveness. Why??
+          Logging::log_event(worker_exit);
           wakeChildren();
           Stats::on_exit_acquire(sa);
           Logging::log_event(exit_wait);
@@ -424,6 +425,7 @@ public:
               assert(s == fiber_status_terminate);
               current->finish();
               status = scheduler_status_finish;
+              Logging::log_event(initiate_teardown);
               should_terminate = true;
               // This worker is currently busy, so it has no children!
               // wakeChildren(); 

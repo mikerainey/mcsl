@@ -323,8 +323,14 @@ public:
         auto idx = status.bits.head;
         while (idx != my_id) {
             Logging::log_wake_child(idx);
+            // IMPORTANT!
+            // We must first access the next field before sem_post()
+            // other wise it's possible for the waken up processor to sleep
+            // on yet another processor before we access its next field, 
+            // changing its next field.
+            auto nextIdx = elastic[idx].next;
             sem_post(&elastic[idx].sem);
-            idx = elastic[idx].next;
+            idx = nextIdx;
         }
     };
 
@@ -376,13 +382,13 @@ public:
               Logging::log_enter_sleep(k, target_status.bits.priority, my_status.bits.priority);
               auto ss = Stats::on_enter_sleep();
               sem_wait(&elastic[my_id].sem);
-              elastic[my_id].status.setBusyBit();
+              // Must not set busybit here, because it will go back to stealing
               Stats::on_exit_sleep(ss);
               Logging::log_event(exit_sleep);
               // TODO: Add support for CRS
             } // Otherwise we just give up
           } else {
-            Logging::log_failed_to_sleep(k, target_status.bits.busybit, target_status.bits.priority, my_status.bits.priority);
+            // Logging::log_failed_to_sleep(k, target_status.bits.busybit, target_status.bits.priority, my_status.bits.priority);
           }
         } else {
           // We succeeded in stealing, let's start to wake people up

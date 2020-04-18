@@ -369,6 +369,7 @@ public:
             // CAS fails because it will never be referenced in case of failure.
             if (elastic[k].status.cas_head(target_status, my_id)) {
               // Wait on my own semaphore
+              Stats::increment(Stats::configuration_type::nb_sleeps);
               Logging::log_enter_sleep(k, target_status.bits.priority, my_status.bits.priority);
               auto ss = Stats::on_enter_sleep();
               sem_wait(&elastic[my_id].sem);

@@ -25,6 +25,7 @@ public:
   using counter_id_type = enum counter_id_enum {
     nb_fibers,
     nb_steals,
+    nb_sleeps,
     nb_counters
   };
 
@@ -33,6 +34,7 @@ public:
     std::map<counter_id_type, const char*> names;
     names[nb_fibers] = "nb_fibers";
     names[nb_steals] = "nb_steals";
+    names[nb_sleeps] = "nb_sleeps";
     return names[id];
   }
   

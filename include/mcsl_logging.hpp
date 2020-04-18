@@ -21,13 +21,15 @@ using event_kind_type = enum event_kind_enum {
 };
 
 using event_tag_type = enum event_tag_type_enum {
+  // important: the following events are reserved for pview
   enter_launch = 0,   exit_launch,
   enter_algo,         exit_algo,
   enter_wait,         exit_wait,
-  enter_sleep,        exit_sleep,     failed_to_sleep,
-  wake_child,         worker_exit,    initiate_teardown,
   worker_communicate, interrupt,
   algo_phase,
+  // all the remaining events are free to be changed
+  enter_sleep,        exit_sleep,     failed_to_sleep,
+  wake_child,         worker_exit,    initiate_teardown,
   program_point,
   nb_events
 };
@@ -54,19 +56,21 @@ std::string name_of(event_tag_type e) {
 
 event_kind_type kind_of(event_tag_type e) {
   switch (e) {
+    // important: the following kind assignments cannot change due to compatibility w/ pview
     case enter_launch:
     case exit_launch:
     case enter_algo:
     case exit_algo:
     case enter_wait:
-    case exit_wait:
+    case exit_wait:                return phases;
+    // all of the remaining kind assignments can change
     case enter_sleep:
     case failed_to_sleep:
     case exit_sleep:
     case wake_child:
+    case algo_phase:                
     case worker_exit:
     case initiate_teardown:
-    case algo_phase:                return phases;
     case program_point:             return program;
     default:                        return nb_kinds;
   }

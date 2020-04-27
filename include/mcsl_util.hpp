@@ -11,7 +11,9 @@ namespace mcsl {
 /*---------------------------------------------------------------------*/
 /* Hash function */
 
-uint64_t hash(uint64_t x) {
+using hash_value_type = uint64_t;
+  
+hash_value_type hash(hash_value_type x) {
   x = (x ^ (x >> 30)) * UINT64_C(0xbf58476d1ce4e5b9);
   x = (x ^ (x >> 27)) * UINT64_C(0x94d049bb133111eb);
   x = x ^ (x >> 31);

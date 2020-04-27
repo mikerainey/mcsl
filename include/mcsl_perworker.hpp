@@ -56,7 +56,8 @@ public:
 
 std::atomic<int> unique_id::fresh_id(0);
   
-__thread int unique_id::my_id = uninitialized_id;
+__thread
+int unique_id::my_id = uninitialized_id;
 
 /*---------------------------------------------------------------------*/
 /* Per-worker array */

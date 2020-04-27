@@ -392,28 +392,6 @@ void fork2(const F1& f1, const F2& f2) {
 
 /*---------------------------------------------------------------------*/
 /* Scheduler launch */
-
-/* A fiber that, when executed, initiates the teardown of the 
- * scheduler. 
- */
-  
-template <typename Scheduler_configuration>
-class terminal_fiber : public fiber<Scheduler_configuration> {
-public:
-  
-  terminal_fiber() : fiber<Scheduler_configuration>() { }
-  
-  fiber_status_type run() {
-    return fiber_status_terminate;
-  }
-  
-};
-
-static
-clock::time_point_type start_time;
-
-static
-struct rusage ru_before, ru_after;
   
 bool started = false;
   
@@ -422,32 +400,43 @@ template <typename Scheduler_configuration, typename Stats, typename Logging,
 void launch0(const Bench_pre& bench_pre,
 	     const Bench_post& bench_post,
 	     fiber<Scheduler_configuration>* f_body) {
-  auto double_of_tv = [] (struct timeval tv) {
-    return ((double) tv.tv_sec) + ((double) tv.tv_usec)/1000000.;
-  };
   std::size_t nb_workers = deepsea::cmdline::parse_or_default_int("proc", 1);
+  clock::time_point_type start_time;
+  struct rusage ru_before, ru_after;
   double elapsed;
   Logging::initialize();
-  fjnative_of_function fj_pre([&] {
-    started = true;
-    bench_pre();
+  fjnative_of_function fj_init([&] { started = true; });
+  fjnative_of_function fj_bench_pre(bench_pre);
+  fjnative_of_function fj_before_bench([&] {
+    Logging::log_event(enter_algo); // to log that the benchmark f_body is to be scheduled next
+    getrusage (RUSAGE_SELF, &ru_before);
+    start_time = clock::now();
   });
-  auto f_pre = &fj_pre;
-  fjnative_of_function fj_cont([&] {
+  fjnative_of_function fj_after_bench([&] {
     getrusage (RUSAGE_SELF, &ru_after);
     elapsed = clock::since(start_time);
-    Logging::log_event(exit_algo);
-    bench_post();
+    Logging::log_event(exit_algo); // to log that the benchmark f_body has completed
   });
-  auto f_cont = &fj_cont;
+  fjnative_of_function fj_bench_post(bench_post);  
   {
+    auto f_init = &fj_init;
+    auto f_bench_pre = &fj_bench_pre;
+    auto f_before_bench = &fj_before_bench;
+    auto f_after_bench = &fj_after_bench;
+    auto f_bench_post = &fj_bench_post;
     auto f_term = new terminal_fiber<Scheduler_configuration>;
-    fiber<Scheduler_configuration>::add_edge(f_pre, f_body);
-    fiber<Scheduler_configuration>::add_edge(f_body, f_cont);
-    fiber<Scheduler_configuration>::add_edge(f_cont, f_term);
-    f_pre->release();
-    f_body->release();
-    f_cont->release();
+    fiber<Scheduler_configuration>::add_edge(f_init, f_bench_pre);
+    fiber<Scheduler_configuration>::add_edge(f_bench_pre, f_before_bench);
+    fiber<Scheduler_configuration>::add_edge(f_before_bench, f_body);
+    fiber<Scheduler_configuration>::add_edge(f_body, f_after_bench);
+    fiber<Scheduler_configuration>::add_edge(f_after_bench, f_bench_post);
+    fiber<Scheduler_configuration>::add_edge(f_bench_post, f_term);
+    f_init->release();
+    f_bench_pre->release();
+    f_before_bench->release();
+    f_body->release();    
+    f_after_bench->release();
+    f_bench_post->release();
     f_term->release();
   }
   using scheduler_type = chase_lev_work_stealing_scheduler<Scheduler_configuration, fiber, Stats, Logging>;
@@ -455,12 +444,17 @@ void launch0(const Bench_pre& bench_pre,
   scheduler_type::launch(nb_workers);
   Stats::on_exit_launch();
   aprintf("exectime %.3f\n", elapsed);
-  aprintf("usertime  %.3lf\n",
-          double_of_tv(ru_after.ru_utime) -
-          double_of_tv(ru_before.ru_utime));
-  aprintf("systime  %.3lf\n",
-          double_of_tv(ru_after.ru_stime) -
-          double_of_tv(ru_before.ru_stime));
+  {
+    auto double_of_tv = [] (struct timeval tv) {
+      return ((double) tv.tv_sec) + ((double) tv.tv_usec)/1000000.;
+    };
+    aprintf("usertime  %.3lf\n",
+            double_of_tv(ru_after.ru_utime) -
+            double_of_tv(ru_before.ru_utime));
+    aprintf("systime  %.3lf\n",
+            double_of_tv(ru_after.ru_stime) -
+            double_of_tv(ru_before.ru_stime));
+  }
   Stats::report();
   Logging::output();
 }
@@ -469,12 +463,7 @@ template <typename Bench_pre, typename Bench_post, typename Bench_body>
 void launch(const Bench_pre& bench_pre,
             const Bench_post& bench_post,
             const Bench_body& bench_body) {
-  fjnative_of_function fj_body([&] {
-    basic_logging::log_event(enter_algo);
-    getrusage (RUSAGE_SELF, &ru_before);
-    start_time = clock::now();
-    bench_body();
-  });
+  fjnative_of_function fj_body(bench_body);
   auto f_body = &fj_body;
   launch0<basic_scheduler_configuration, basic_stats, basic_logging, Bench_pre, Bench_post>(bench_pre, bench_post, f_body);
 }

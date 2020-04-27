@@ -155,6 +155,9 @@ template <typename Scheduler_configuration,
 class chase_lev_work_stealing_scheduler {
 private:
 
+  // Type aliases
+  // ------------
+
   using fiber_type = Fiber<Scheduler_configuration>;
 
   using cl_deque_type = chase_lev_deque<fiber_type>;
@@ -163,6 +166,11 @@ private:
 
   using elastic_type = elastic<Stats, Logging>;
 
+  using termination_detection_barrier_type = typename Scheduler_configuration::termination_detection_barrier_type;
+
+  // Worker-local memory
+  // -------------------
+  
   static
   perworker::array<cl_deque_type> deques;
 
@@ -172,6 +180,12 @@ private:
   static
   perworker::array<hash_value_type> random_number_generators;
 
+  static
+  perworker::array<pthread_t> pthreads;
+
+  // Helper functions
+  // ----------------
+  
   static
   std::size_t random_other_worker(size_t nb_workers, size_t my_id) {
     assert(nb_workers != 1);
@@ -185,9 +199,6 @@ private:
     assert(id >= 0 && id < nb_workers);
     return id;
   }
-
-  static
-  perworker::array<pthread_t> pthreads;
 
   static
   fiber_type* flush() {
@@ -207,10 +218,9 @@ private:
     assert(my_buffer.empty());
     return current;
   }
-
-  using termination_detection_barrier_type = typename Scheduler_configuration::termination_detection_barrier_type;
   
 public:
+  
   static void launch(std::size_t nb_workers) {
     bool should_terminate = false;
     termination_detection_barrier_type termination_barrier;

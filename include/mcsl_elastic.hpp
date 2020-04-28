@@ -78,9 +78,14 @@ public:
 /*---------------------------------------------------------------------*/
 /* Elastic work stealing */
 
+using elastic_policy_type = enum elastic_enum { elastic_policy_enabled, elastic_policy_disabled };
+
 template <typename Stats, typename Logging>
-class elastic {
+class default_elastic {
 public:
+
+  static
+  elastic_policy_type policy;
 
   // Grouping fields for elastic scheduling together for potentiallly
   // better cache behavior and easier initialization.
@@ -97,6 +102,9 @@ public:
   // Busybit is set separately, this function only traverses and wakes people up
   static
   void wake_children() {
+    if (policy == elastic_policy_disabled) {
+      return;
+    }
     auto my_id = perworker::unique_id::get_my_id();
     fields[my_id].status.set_busy_bit();
     auto status = fields[my_id].status.load();
@@ -116,6 +124,9 @@ public:
 
   static
   void try_to_sleep(std::size_t target) {
+    if (policy == elastic_policy_disabled) {
+      return;
+    }
     // For whatever reason we failed to steal from our victim
     // It is possible that we are in this branch because the steal failed
     // due to contention instead of empty queue. However we are still safe 
@@ -147,6 +158,9 @@ public:
 
   static
   void accept_lifelines() {
+    if (policy == elastic_policy_disabled) {
+      return;
+    }
     // 1) Clear the children list 
     // 2) Start to accept lifelines by unsetting busy bit
     // 3) Randomly choose a new priority
@@ -172,6 +186,30 @@ public:
 };
 
 template <typename Stats, typename Logging>
-perworker::array<typename elastic<Stats,Logging>::elastic_fields_type> elastic<Stats,Logging>::fields;
+perworker::array<typename default_elastic<Stats,Logging>::elastic_fields_type> default_elastic<Stats,Logging>::fields;
+
+template <typename Stats, typename Logging>
+elastic_policy_type default_elastic<Stats,Logging>::policy = elastic_policy_enabled;
+
+/*---------------------------------------------------------------------*/
+/* Trivial replacement for elastic work stealing */
+  
+template <typename Stats, typename Logging>
+class noop_elastic {
+public:
+
+  static
+  void wake_children() { }
+
+  static
+  void try_to_sleep(std::size_t) { }
+
+  static
+  void accept_lifelines() { }
+
+  static
+  void initialize() { }
+  
+};
 
 } // end namespace

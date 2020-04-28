@@ -151,9 +151,10 @@ using fiber_status_type = enum fiber_status_enum {
   
 template <typename Scheduler_configuration,
           template <typename> typename Fiber,
+          template <typename,typename> typename Elastic,
           typename Stats, typename Logging>
 class chase_lev_work_stealing_scheduler {
-private:
+public:
 
   // Type aliases
   // ------------
@@ -164,7 +165,7 @@ private:
 
   using buffer_type = std::deque<fiber_type*>;
 
-  using elastic_type = elastic<Stats, Logging>;
+  using elastic_type = Elastic<Stats, Logging>;
 
   using termination_detection_barrier_type = typename Scheduler_configuration::termination_detection_barrier_type;
 
@@ -218,8 +219,6 @@ private:
     assert(my_buffer.empty());
     return current;
   }
-  
-public:
 
   static
   std::size_t nb_steal_attempts;
@@ -385,52 +384,60 @@ public:
 
 template <typename Scheduler_configuration,
           template <typename> typename Fiber,
+          template <typename,typename> typename Elastic,
           typename Stats, typename Logging>
-std::size_t chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::nb_steal_attempts = 1;
+std::size_t chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Elastic,Stats,Logging>::nb_steal_attempts = 1;
 
 template <typename Scheduler_configuration,
           template <typename> typename Fiber,
+          template <typename,typename> typename Elastic,
           typename Stats, typename Logging>
-perworker::array<typename chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::cl_deque_type> 
-chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::deques;
+perworker::array<typename chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Elastic,Stats,Logging>::cl_deque_type> 
+chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Elastic,Stats,Logging>::deques;
 
 template <typename Scheduler_configuration,
           template <typename> typename Fiber,
+          template <typename,typename> typename Elastic,
           typename Stats, typename Logging>
-perworker::array<typename chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::buffer_type> 
-chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::buffers;
+perworker::array<typename chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Elastic,Stats,Logging>::buffer_type> 
+chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Elastic,Stats,Logging>::buffers;
 
 template <typename Scheduler_configuration,
           template <typename> typename Fiber,
+          template <typename,typename> typename Elastic,
           typename Stats, typename Logging>
 perworker::array<hash_value_type> 
-chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::random_number_generators;
+chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Elastic,Stats,Logging>::random_number_generators;
 
 template <typename Scheduler_configuration,
           template <typename> typename Fiber,
+          template <typename,typename> typename Elastic,
           typename Stats, typename Logging>
 perworker::array<pthread_t> 
-chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::pthreads;
+chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Elastic,Stats,Logging>::pthreads;
 
 template <typename Scheduler_configuration,
           template <typename> typename Fiber,
+          template <typename,typename> typename Elastic,
           typename Stats, typename Logging>
 Fiber<Scheduler_configuration>* take() {
-  return chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::take();  
+  return chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Elastic,Stats,Logging>::take();  
 }
 
 template <typename Scheduler_configuration,
           template <typename> typename Fiber,
+          template <typename,typename> typename Elastic,
           typename Stats, typename Logging>
 void schedule(Fiber<Scheduler_configuration>* f) {
-  chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::schedule(f);  
+  chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Elastic,Stats,Logging>::schedule(f);  
 }
 
 template <typename Scheduler_configuration,
           template <typename> typename Fiber,
+          template <typename,typename> typename Elastic,
           typename Stats, typename Logging>
 void commit() {
-  chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::commit();
+  chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Elastic,Stats,Logging>::commit();
 }
   
 } // end namespace

@@ -220,6 +220,9 @@ private:
   }
   
 public:
+
+  static
+  std::size_t nb_steal_attempts;
   
   static void launch(std::size_t nb_workers) {
     bool should_terminate = false;
@@ -246,18 +249,25 @@ public:
       elastic_type::accept_lifelines();
       fiber_type *current = nullptr;
       while (current == nullptr) {
-        auto k = random_other_worker(nb_workers, my_id);
-        termination_barrier.set_active(true);
-        if (! deques[k].empty()) {
-          current = deques[k].steal();
-          if (current == nullptr) {
-            termination_barrier.set_active(false);
-          } else {
-            Stats::increment(Stats::configuration_type::nb_steals);
+        assert(nb_steal_attempts >= 1);
+        auto i = nb_steal_attempts;
+        auto target = random_other_worker(nb_workers, my_id);
+        do {
+          if (! deques[target].empty()) {
+            termination_barrier.set_active(true);
+            current = deques[target].steal();
+            if (current == nullptr) {
+              termination_barrier.set_active(false);
+            } else {
+              Stats::increment(Stats::configuration_type::nb_steals);
+              break;
+            }
           }
-        }
+          i--;
+          target = random_other_worker(nb_workers, my_id);
+        } while (i > 0);
         if (current == nullptr) {
-          elastic_type::try_to_sleep(k);
+          elastic_type::try_to_sleep(target);
         } else {
           elastic_type::wake_children();
         }
@@ -372,6 +382,11 @@ public:
   }
 
 };
+
+template <typename Scheduler_configuration,
+          template <typename> typename Fiber,
+          typename Stats, typename Logging>
+std::size_t chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Stats,Logging>::nb_steal_attempts = 1;
 
 template <typename Scheduler_configuration,
           template <typename> typename Fiber,

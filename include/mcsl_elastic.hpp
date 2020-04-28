@@ -115,24 +115,24 @@ public:
   }
 
   static
-  void try_to_sleep(std::size_t k) {
+  void try_to_sleep(std::size_t target) {
     // For whatever reason we failed to steal from our victim
     // It is possible that we are in this branch because the steal failed
     // due to contention instead of empty queue. However we are still safe 
     // because of the busy bit.
     auto my_id = perworker::unique_id::get_my_id();
-    assert(k != my_id);
-    auto target_status = fields[k].status.load();
+    assert(target != my_id);
+    auto target_status = fields[target].status.load();
     auto my_status = fields[my_id].status.load();
     if ((! target_status.bits.busybit) && 
         (target_status.bits.priority > my_status.bits.priority)){
       fields[my_id].next = target_status.bits.head;
       // It's safe to just leave it in the array even if the following
       // CAS fails because it will never be referenced in case of failure.
-      if (fields[k].status.cas_head(target_status, my_id)) {
+      if (fields[target].status.cas_head(target_status, my_id)) {
         // Wait on my own semaphore
         Stats::increment(Stats::configuration_type::nb_sleeps);
-        Logging::log_enter_sleep(k, target_status.bits.priority, my_status.bits.priority);
+        Logging::log_enter_sleep(target, target_status.bits.priority, my_status.bits.priority);
         auto ss = Stats::on_enter_sleep();
         sem_wait(&fields[my_id].sem);
         // Must not set busybit here, because it will go back to stealing

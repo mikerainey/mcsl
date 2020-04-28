@@ -400,7 +400,6 @@ template <typename Scheduler_configuration, typename Stats, typename Logging,
 void launch0(const Bench_pre& bench_pre,
 	     const Bench_post& bench_post,
 	     fiber<Scheduler_configuration>* f_body) {
-  std::size_t nb_workers = deepsea::cmdline::parse_or_default_int("proc", 1);
   clock::time_point_type start_time;
   struct rusage ru_before, ru_after;
   double elapsed;
@@ -440,6 +439,13 @@ void launch0(const Bench_pre& bench_pre,
     f_term->release();
   }
   using scheduler_type = chase_lev_work_stealing_scheduler<Scheduler_configuration, fiber, Stats, Logging>;
+  std::size_t nb_workers = deepsea::cmdline::parse_or_default_int("proc", 1);
+  {
+    deepsea::cmdline::dispatcher d;
+    d.add("once", [] { scheduler_type::nb_steal_attempts = 1; });
+    d.add("coupon", [&] { scheduler_type::nb_steal_attempts = nb_workers * 100; });
+    d.dispatch_or_default("stealpol", "once");
+  }
   Stats::on_enter_launch();
   scheduler_type::launch(nb_workers);
   Stats::on_exit_launch();

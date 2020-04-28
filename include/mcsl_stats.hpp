@@ -87,6 +87,21 @@ public:
   }
 
   static
+  void start_collecting() {
+    for (int i = 0; i < all_counters.size(); i++) {
+      for (int j = 0; j < Configuration::nb_counters; j++) {
+        all_counters[i].counters[j] = 0;
+      }
+    }
+    for (int i = 0; i < all_total_idle_time.size(); i++) {
+      all_total_idle_time[i] = 0.0;
+    }
+    for (int i = 0; i < all_total_sleep_time.size(); i++) {
+      all_total_sleep_time[i] = 0.0;
+    }
+  }
+
+  static
   void report() {
     if (! Configuration::enabled) {
       return;

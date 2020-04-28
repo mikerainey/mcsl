@@ -408,13 +408,17 @@ void launch0(const Bench_pre& bench_pre,
   fjnative_of_function fj_bench_pre(bench_pre);
   fjnative_of_function fj_before_bench([&] {
     Logging::log_event(enter_algo); // to log that the benchmark f_body is to be scheduled next
+    Stats::start_collecting();
+    Stats::on_enter_launch();
     getrusage (RUSAGE_SELF, &ru_before);
     start_time = clock::now();
   });
   fjnative_of_function fj_after_bench([&] {
     getrusage (RUSAGE_SELF, &ru_after);
     elapsed = clock::since(start_time);
+    Stats::on_exit_launch();
     Logging::log_event(exit_algo); // to log that the benchmark f_body has completed
+    Stats::report();
   });
   fjnative_of_function fj_bench_post(bench_post);  
   {
@@ -446,9 +450,7 @@ void launch0(const Bench_pre& bench_pre,
     d.add("coupon", [&] { scheduler_type::nb_steal_attempts = nb_workers * 100; });
     d.dispatch_or_default("stealpol", "once");
   }
-  Stats::on_enter_launch();
   scheduler_type::launch(nb_workers);
-  Stats::on_exit_launch();
   aprintf("exectime %.3f\n", elapsed);
   {
     auto double_of_tv = [] (struct timeval tv) {
@@ -461,7 +463,6 @@ void launch0(const Bench_pre& bench_pre,
             double_of_tv(ru_after.ru_stime) -
             double_of_tv(ru_before.ru_stime));
   }
-  Stats::report();
   Logging::output();
 }
 

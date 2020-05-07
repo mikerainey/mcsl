@@ -411,6 +411,20 @@ template <typename Scheduler_configuration, typename Stats, typename Logging,
 void launch0(const Bench_pre& bench_pre,
 	     const Bench_post& bench_post,
 	     fiber<Scheduler_configuration>* f_body) {
+  using scheduler_type = chase_lev_work_stealing_scheduler<Scheduler_configuration, fiber, basic_elastic, Stats, Logging>;
+  std::size_t nb_workers = deepsea::cmdline::parse_or_default_int("proc", 1);
+  {
+    deepsea::cmdline::dispatcher d;
+    d.add("once", [] { scheduler_type::nb_steal_attempts = 1; });
+    d.add("coupon", [&] { scheduler_type::nb_steal_attempts = nb_workers * 100; });
+    d.dispatch_or_default("steal_policy", "once");
+  }
+  {
+    deepsea::cmdline::dispatcher d;
+    d.add("default", [] { scheduler_type::elastic_type::policy = elastic_policy_enabled; });
+    d.add("disabled", [&] { scheduler_type::elastic_type::policy = elastic_policy_disabled; });
+    d.dispatch_or_default("elastic_policy", "default");
+  }
   clock::time_point_type start_time;
   struct rusage ru_before, ru_after;
   double elapsed;
@@ -429,7 +443,7 @@ void launch0(const Bench_pre& bench_pre,
     elapsed = clock::since(start_time);
     Stats::on_exit_launch();
     Logging::log_event(exit_algo); // to log that the benchmark f_body has completed
-    Stats::report();
+    Stats::report(nb_workers);
   });
   fjnative_of_function fj_bench_post(bench_post);  
   {
@@ -453,20 +467,6 @@ void launch0(const Bench_pre& bench_pre,
     f_bench_post->release();
     f_term->release();
   }
-  using scheduler_type = chase_lev_work_stealing_scheduler<Scheduler_configuration, fiber, basic_elastic, Stats, Logging>;
-  std::size_t nb_workers = deepsea::cmdline::parse_or_default_int("proc", 1);
-  {
-    deepsea::cmdline::dispatcher d;
-    d.add("once", [] { scheduler_type::nb_steal_attempts = 1; });
-    d.add("coupon", [&] { scheduler_type::nb_steal_attempts = nb_workers * 100; });
-    d.dispatch_or_default("steal_policy", "once");
-  }
-  {
-    deepsea::cmdline::dispatcher d;
-    d.add("default", [] { scheduler_type::elastic_type::policy = elastic_policy_enabled; });
-    d.add("disabled", [&] { scheduler_type::elastic_type::policy = elastic_policy_disabled; });
-    d.dispatch_or_default("elastic_policy", "default");
-  }
   scheduler_type::launch(nb_workers);
   aprintf("exectime %.3f\n", elapsed);
   {
@@ -480,7 +480,7 @@ void launch0(const Bench_pre& bench_pre,
             double_of_tv(ru_after.ru_stime) -
             double_of_tv(ru_before.ru_stime));
   }
-  Logging::output();
+  Logging::output(nb_workers);
 }
 
 template <typename Bench_pre, typename Bench_post, typename Bench_body>

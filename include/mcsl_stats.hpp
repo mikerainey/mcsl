@@ -102,11 +102,10 @@ public:
   }
 
   static
-  void report() {
+  void report(std::size_t nb_workers) {
     if (! Configuration::enabled) {
       return;
     }
-    auto nb_workers = perworker::unique_id::get_nb_workers();
     for (int counter_id = 0; counter_id < Configuration::nb_counters; counter_id++) {
       long counter_value = 0;
       for (std::size_t i = 0; i < nb_workers; ++i) {

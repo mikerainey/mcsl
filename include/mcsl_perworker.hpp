@@ -47,11 +47,6 @@ public:
     return (std::size_t)my_id;
   }
 
-  static
-  std::size_t get_nb_workers() {
-    return (std::size_t)fresh_id.load();
-  }
-
 };
 
 std::atomic<int> unique_id::fresh_id(0);

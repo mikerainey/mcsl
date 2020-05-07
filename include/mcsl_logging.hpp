@@ -320,7 +320,7 @@ public:
   }
 
   static
-  void output() {
+  void output(std::size_t nb_workers) {
     if (! enabled) {
       return;
     }
@@ -331,7 +331,7 @@ public:
       push(e);
     }
     buffer_type b;
-    for (auto id = 0; id != perworker::unique_id::get_nb_workers(); id++) {
+    for (auto id = 0; id != nb_workers; id++) {
       buffer_type& b_id = buffers[id];
       for (auto e : b_id) {
         b.push_back(e);

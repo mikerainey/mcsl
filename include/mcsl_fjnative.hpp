@@ -5,7 +5,6 @@
 
 #include "mcsl_fiber.hpp"
 #include "mcsl_snzi.hpp"
-#include "mcsl_machine.hpp"
 
 /*---------------------------------------------------------------------*/
 /* Basic stats */
@@ -425,10 +424,6 @@ void launch0(const Bench_pre& bench_pre,
     d.add("default", [] { scheduler_type::elastic_type::policy = elastic_policy_enabled; });
     d.add("disabled", [&] { scheduler_type::elastic_type::policy = elastic_policy_disabled; });
     d.dispatch_or_default("elastic_policy", "default");
-  }
-  {
-    bool numa_alloc_interleaved = deepsea::cmdline::parse_or_default_bool("numa_round_robin", true);
-    initialize_hwloc(nb_workers, numa_alloc_interleaved);
   }
   clock::time_point_type start_time;
   struct rusage ru_before, ru_after;

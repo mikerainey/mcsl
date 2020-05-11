@@ -14,6 +14,7 @@
 #endif
 
 #include "mcsl_perworker.hpp"
+#include "mcsl_util.hpp"
 
 namespace mcsl {
 

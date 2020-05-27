@@ -6,6 +6,48 @@
 
 namespace mcsl {
 
+/* A standard semaphore implemented using system semaphore support */
+class Semaphore {
+  sem_t sem;
+public:
+  Semaphore()  { sem_init(&sem, 0, 0); }
+  void post()  { sem_post(&sem); }
+  void wait()  { sem_wait(&sem); }
+  ~Semaphore() { sem_destroy(&sem);}
+};
+
+/* An implementation of semaphore that is binary (0 or 1) with spinning wait 
+ * - Crashes when POSTing to a non-zero valued semaphore
+ * - Crashes when WAITint on a zero     valued semaphore
+ * It should be fine for use in the elastic scheduler since 
+ * - Only the processor owning the semaphore will ever wait on it
+ * - Every WATI is paired with exactly one POST and vice versa.
+ */
+class SpinningBinarySemaphore {
+   // 0  -> No processor is waiting on the semaphore
+   // 1  -> A post has been issued to the semaphore
+   // -1 -> A processor is waiting on the semaphore 
+   std::atomic<int> flag;
+public:
+  SpinningBinarySemaphore() : flag(0) {}
+
+  void post() {
+    int oldValue = flag++;
+    assert(oldValue <= 0);
+  }
+
+  void wait() {
+    int oldValue = flag--;
+    assert(oldValue >= 0);
+    while (flag.load() < 0); // Spinning
+  }
+
+  ~SpinningBinarySemaphore() {
+    assert(flag.load() == 0); // The semaphore has to be balanced
+  }
+};
+
+
 /*---------------------------------------------------------------------*/
 /* Atomic status word for elastic work stealing */
   
@@ -91,7 +133,11 @@ public:
   // better cache behavior and easier initialization.
   using elastic_fields_type = struct elastic_fields_struct {
     atomic_status_word status;
-    sem_t sem;     
+#ifdef MCSL_USE_SPINNING_SEMAPHORE
+    SpinningBinarySemaphore sem;     
+#else
+    Semaphore sem;
+#endif
     size_t next;    // Next pointer for the wake-up list
     hash_value_type rng;
   };
@@ -117,7 +163,7 @@ public:
       // on yet another processor before we access its next field, 
       // changing its next field.
       auto nextIdx = fields[idx].next;
-      sem_post(&fields[idx].sem);
+      fields[idx].sem.post();
       idx = nextIdx;
     }
   }
@@ -145,7 +191,7 @@ public:
         Stats::increment(Stats::configuration_type::nb_sleeps);
         Logging::log_enter_sleep(target, target_status.bits.priority, my_status.bits.priority);
         auto ss = Stats::on_enter_sleep();
-        sem_wait(&fields[my_id].sem);
+        fields[my_id].sem.wait();
         // Must not set busybit here, because it will go back to stealing
         Stats::on_exit_sleep(ss);
         Logging::log_event(exit_sleep);
@@ -178,7 +224,6 @@ public:
       auto rn = hash(i + 31);
       fields[i].rng = rn;
       fields[i].status.clear(rn, i, true);
-      sem_init(&fields[i].sem, 0, 0); // Initialize the semaphore
       // We don't really care what next points to at this moment
     }
   }

@@ -2,7 +2,6 @@
 
 #include <memory>
 #include <assert.h>
-#include <deque>
 #include <thread>
 #include <condition_variable>
 #include <iostream>
@@ -10,9 +9,10 @@
 #include "mcsl_stats.hpp"
 #include "mcsl_logging.hpp"
 #include "mcsl_elastic.hpp"
+#include "mcsl_fixedcapacity.hpp"
 
 namespace mcsl {
-
+  
 /*---------------------------------------------------------------------*/
 /* Chase-Lev Work-Stealing Deque data structure
  * 
@@ -163,7 +163,7 @@ public:
 
   using cl_deque_type = chase_lev_deque<fiber_type>;
 
-  using buffer_type = std::deque<fiber_type*>;
+  using buffer_type = ringbuffer<fiber_type*>;
 
   using elastic_type = Elastic<Stats, Logging>;
 

@@ -54,41 +54,23 @@ public:
 };
 
 /*---------------------------------------------------------------------*/
-/* Cache-aligned memory */
-
-template <class Item,
-          std::size_t cache_align_szb=MCSL_CACHE_LINE_SZB>
-class cache_aligned_item {
-private:
-
-  cache_aligned_fixed_capacity_array<Item, 1, cache_align_szb> item;
-  
-public:
-  
-  Item& get() {
-    return item[0];
-  }
-      
-};  
-
-/*---------------------------------------------------------------------*/
 /* Cache-aligned malloc */
 
 template <std::size_t cache_align_szb=MCSL_CACHE_LINE_SZB>
-void* alloc(std::size_t sizeb) {
+void* aligned_alloc(std::size_t sizeb) {
   return std::aligned_alloc(cache_align_szb, cache_align_szb * sizeb);
 }
 
 template <typename Item,
           std::size_t cache_align_szb=MCSL_CACHE_LINE_SZB>
-Item* alloc_uninitialized_array(std::size_t size) {
-  return (Item*)alloc<cache_align_szb>(sizeof(Item) * size);
+Item* aligned_alloc_uninitialized_array(std::size_t size) {
+  return (Item*)aligned_alloc<cache_align_szb>(sizeof(Item) * size);
 }
 
 template <typename Item,
           std::size_t cache_align_szb=MCSL_CACHE_LINE_SZB>
-Item* alloc_uninitialized() {
-  return alloc_uninitialized_array<Item, cache_align_szb>(1);
+Item* aligned_alloc_uninitialized() {
+  return aligned_alloc_uninitialized_array<Item, cache_align_szb>(1);
 }
 
 template <typename Item>
@@ -135,7 +117,7 @@ public:
 
   cache_aligned_array(std::size_t __size)
     : _size(__size) {
-    items.reset(alloc_uninitialized_array<aligned_item_type>(__size));
+    items.reset(aligned_alloc_uninitialized_array<aligned_item_type>(__size));
   }
   
   Item& operator[](std::size_t i) {
@@ -163,5 +145,4 @@ public:
   
 } // end namespace
 
-#undef MCSL_CACHE_LINE_SZB
 

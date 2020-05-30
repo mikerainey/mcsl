@@ -11,8 +11,10 @@ template <typename Scheduler_configuration>
 class fiber {
 private:
 
+  alignas(MCSL_CACHE_LINE_SZB)
   std::atomic<std::size_t> incounter;
 
+  alignas(MCSL_CACHE_LINE_SZB)
   fiber* outedge;
 
 public:

@@ -97,28 +97,30 @@ public:
 
 private:
   
-  cache_aligned_item<std::atomic<counter_type>> counter;
+  alignas(MCSL_CACHE_LINE_SZB)
+  std::atomic<counter_type> counter;
 
-  cache_aligned_item<snzi_node*> parent;
+  alignas(MCSL_CACHE_LINE_SZB)
+  snzi_node* parent;
   
 public:
 
   snzi_node(snzi_node* _parent = nullptr) {
     {
-      parent.get() = _parent;
+      parent = _parent;
     }
     {
       counter_type c = {.c = 0, .v = 0};
-      counter.get().store(c);
+      counter.store(c);
     }
   }
 
   std::atomic<counter_type>& get_counter() {
-    return counter.get();
+    return counter;
   }
 
   snzi_node* get_parent() {
-    return parent.get();
+    return parent;
   }
 
   void increment() {
@@ -159,13 +161,14 @@ private:
 
   cache_aligned_fixed_capacity_array<node_type, heap_size> heap;
 
-  cache_aligned_item<node_type> root;
+  alignas(MCSL_CACHE_LINE_SZB)
+  node_type root;
 
   void initialize_heap() {
-    new (&root.get()) node_type;
+    new (&root) node_type;
     // cells at indices 0 and 1 are not used
     for (std::size_t i = 2; i < 4; i++) {
-      new (&heap[i]) node_type(&(root.get()));
+      new (&heap[i]) node_type(&(root));
     }
     for (std::size_t i = 4; i < heap_size; i++) {
       new (&heap[i]) node_type(&heap[i / 2]);
@@ -213,7 +216,7 @@ public:
   }
 
   node_type& get_root() {
-    return root.get();
+    return root;
   }
   
 };

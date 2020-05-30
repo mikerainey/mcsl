@@ -160,7 +160,10 @@ _mcsl_ctx_restore:
 )");
 
 static constexpr
-int thread_stack_szb = 1<<20;
+std::size_t stack_alignb = 16;
+
+static constexpr
+std::size_t thread_stack_szb = stack_alignb * (1<<12);
 
 namespace mcsl {
   
@@ -211,8 +214,10 @@ public:
       assert(false);
     }
     char* stack = (char*)malloc(thread_stack_szb);
-    void** _ctx = (void**)ctx;
-    _ctx[_X86_64_SP_OFFSET] = &stack[thread_stack_szb];
+    char* stack_end = &stack[thread_stack_szb];
+    stack_end -= (std::size_t)stack_end % stack_alignb;
+    void** _ctx = (void**)ctx;    
+    _ctx[_X86_64_SP_OFFSET] = stack_end;
     return stack;
   }
   
@@ -434,12 +439,12 @@ void launch0(const Bench_pre& bench_pre,
   fjnative_of_function fj_bench_pre(bench_pre);
   fjnative_of_function fj_before_bench([&] {
     Logging::log_event(enter_algo); // to log that the benchmark f_body is to be scheduled next
-    getrusage (RUSAGE_SELF, &ru_before);
+    getrusage(RUSAGE_SELF, &ru_before);
     start_time = clock::now();
   });
   fjnative_of_function fj_after_bench([&] {
-    getrusage (RUSAGE_SELF, &ru_after);
     elapsed = clock::since(start_time);
+    getrusage(RUSAGE_SELF, &ru_after);
     Logging::log_event(exit_algo); // to log that the benchmark f_body has completed
   });
   fjnative_of_function fj_bench_post(bench_post);  

@@ -418,10 +418,11 @@ void launch0(const Bench_pre& bench_pre,
 	     fiber<Scheduler_configuration>* f_body) {
   using scheduler_type = chase_lev_work_stealing_scheduler<Scheduler_configuration, fiber, basic_elastic, Stats, Logging>;
   std::size_t nb_workers = deepsea::cmdline::parse_or_default_int("proc", 1);
+  std::size_t nb_steal_attempts = 1;
   {
     deepsea::cmdline::dispatcher d;
-    d.add("once", [] { scheduler_type::nb_steal_attempts = 1; });
-    d.add("coupon", [&] { scheduler_type::nb_steal_attempts = nb_workers * 100; });
+    d.add("once", [&] { nb_steal_attempts = 1; });
+    d.add("coupon", [&] { nb_steal_attempts = nb_workers * 100; });
     d.dispatch_or_default("steal_policy", "once");
   }
   {
@@ -470,7 +471,7 @@ void launch0(const Bench_pre& bench_pre,
     f_term->release();
   }
   Stats::on_enter_launch();
-  scheduler_type::launch(nb_workers);
+  scheduler_type::launch(nb_workers, nb_steal_attempts);
   Stats::on_exit_launch();
   aprintf("exectime %.3f\n", elapsed);
   {

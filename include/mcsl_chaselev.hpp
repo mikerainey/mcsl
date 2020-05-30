@@ -201,9 +201,7 @@ public:
   }
 
   static
-  std::size_t nb_steal_attempts;
-  
-  static void launch(std::size_t nb_workers) {
+  void launch(std::size_t nb_workers, std::size_t nb_steal_attempts=1) {
     bool should_terminate = false;
     termination_detection_barrier_type termination_barrier;
 
@@ -376,12 +374,6 @@ public:
   }
 
 };
-
-template <typename Scheduler_configuration,
-          template <typename> typename Fiber,
-          template <typename,typename> typename Elastic,
-          typename Stats, typename Logging>
-std::size_t chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Elastic,Stats,Logging>::nb_steal_attempts = 1;
 
 template <typename Scheduler_configuration,
           template <typename> typename Fiber,

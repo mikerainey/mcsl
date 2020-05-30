@@ -207,7 +207,6 @@ public:
     bool should_terminate = false;
     termination_detection_barrier_type termination_barrier;
     worker_exit_barrier_type worker_exit_barrier(nb_workers);
-    perworker::array<pthread_t> pthreads;
     
     using scheduler_status_type = enum scheduler_status_enum {
       scheduler_status_active,
@@ -328,11 +327,9 @@ public:
         termination_barrier.set_active(true);
         worker_loop(i);
       });
-      pthreads[i] = t.native_handle();
       t.detach();
     }
-    pthreads[0] = pthread_self();
-    Scheduler_configuration::launch_ping_thread(nb_workers, pthreads);
+    Scheduler_configuration::launch_ping_thread(nb_workers);
     worker_loop(0);
   }
 

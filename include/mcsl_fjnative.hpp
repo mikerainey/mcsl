@@ -118,7 +118,7 @@ public:
   }
   
   static
-  void launch_ping_thread(std::size_t, perworker::array<pthread_t>&) {
+  void launch_ping_thread(std::size_t) {
     
   }
 

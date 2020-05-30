@@ -173,34 +173,14 @@ public:
   // -------------------
   
   static
-  perworker::array<cl_deque_type> deques;
-
-  static
   perworker::array<buffer_type> buffers;
 
   static
-  perworker::array<hash_value_type> rngs;
-
-  static
-  perworker::array<pthread_t> pthreads;
+  perworker::array<cl_deque_type> deques;
 
   // Helper functions
   // ----------------
   
-  static
-  std::size_t random_other_worker(size_t nb_workers, size_t my_id) {
-    assert(nb_workers != 1);
-    auto& rn = rngs.mine();
-    auto id = (std::size_t)(rn % (nb_workers - 1));
-    if (id >= my_id) {
-      id++;
-    }
-    rn = hash(rn);
-    assert(id != my_id);
-    assert(id >= 0 && id < nb_workers);
-    return id;
-  }
-
   static
   fiber_type* flush() {
     auto& my_buffer = buffers.mine();
@@ -230,10 +210,26 @@ public:
     std::size_t nb_workers_exited = 0;
     std::mutex exit_lock;
     std::condition_variable exit_condition_variable;
-
+    perworker::array<pthread_t> pthreads;
+    
     using scheduler_status_type = enum scheduler_status_enum {
       scheduler_status_active,
       scheduler_status_finish
+    };
+
+    perworker::array<hash_value_type> rngs;
+
+    auto random_other_worker = [&] (size_t nb_workers, size_t my_id) -> std::size_t {
+      assert(nb_workers != 1);
+      auto& rn = rngs.mine();
+      auto id = (std::size_t)(rn % (nb_workers - 1));
+      if (id >= my_id) {
+        id++;
+      }
+      rn = hash(rn);
+      assert(id != my_id);
+      assert(id >= 0 && id < nb_workers);
+      return id;
     };
 
     auto acquire = [&] {
@@ -286,7 +282,7 @@ public:
       return scheduler_status_active;
     };
 
-    auto worker_loop = [&] {
+    auto worker_loop = [&] (std::size_t my_id) {
       Scheduler_configuration::initialize_worker();
       auto &my_deque = deques.mine();
       scheduler_status_type status = scheduler_status_active;
@@ -321,7 +317,7 @@ public:
       {
         std::unique_lock<std::mutex> lk(exit_lock);
         auto nb = ++nb_workers_exited;
-        if (perworker::unique_id::get_my_id() == 0) {
+        if (my_id == 0) {
           exit_condition_variable.wait(
               lk, [&] { return nb_workers_exited == nb_workers; });
         } else if (nb == nb_workers) {
@@ -342,14 +338,14 @@ public:
     for (std::size_t i = 1; i < nb_workers; i++) {
       auto t = std::thread([&] {
         termination_barrier.set_active(true);
-        worker_loop();
+        worker_loop(i);
       });
       pthreads[i] = t.native_handle();
       t.detach();
     }
     pthreads[0] = pthread_self();
     Scheduler_configuration::launch_ping_thread(nb_workers, pthreads);
-    worker_loop();
+    worker_loop(0);
   }
 
   static
@@ -400,20 +396,6 @@ template <typename Scheduler_configuration,
           typename Stats, typename Logging>
 perworker::array<typename chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Elastic,Stats,Logging>::buffer_type> 
 chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Elastic,Stats,Logging>::buffers;
-
-template <typename Scheduler_configuration,
-          template <typename> typename Fiber,
-          template <typename,typename> typename Elastic,
-          typename Stats, typename Logging>
-perworker::array<hash_value_type> 
-chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Elastic,Stats,Logging>::rngs;
-
-template <typename Scheduler_configuration,
-          template <typename> typename Fiber,
-          template <typename,typename> typename Elastic,
-          typename Stats, typename Logging>
-perworker::array<pthread_t> 
-chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Elastic,Stats,Logging>::pthreads;
 
 template <typename Scheduler_configuration,
           template <typename> typename Fiber,

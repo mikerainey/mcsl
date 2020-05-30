@@ -179,7 +179,7 @@ public:
   perworker::array<buffer_type> buffers;
 
   static
-  perworker::array<hash_value_type> random_number_generators;
+  perworker::array<hash_value_type> rngs;
 
   static
   perworker::array<pthread_t> pthreads;
@@ -190,7 +190,7 @@ public:
   static
   std::size_t random_other_worker(size_t nb_workers, size_t my_id) {
     assert(nb_workers != 1);
-    auto& rn = random_number_generators.mine();
+    auto& rn = rngs.mine();
     auto id = (std::size_t)(rn % (nb_workers - 1));
     if (id >= my_id) {
       id++;
@@ -330,9 +330,8 @@ public:
       }
     };
     
-    for (std::size_t i = 0; i < random_number_generators.size(); ++i) {
-      // The hash function used here has a weired property: 0 == hash(0)
-      random_number_generators[i] = hash(i + 31);
+    for (std::size_t i = 0; i < rngs.size(); ++i) {
+      rngs[i] = hash(i + 31);
     }
 
     elastic_type::initialize();
@@ -407,7 +406,7 @@ template <typename Scheduler_configuration,
           template <typename,typename> typename Elastic,
           typename Stats, typename Logging>
 perworker::array<hash_value_type> 
-chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Elastic,Stats,Logging>::random_number_generators;
+chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Elastic,Stats,Logging>::rngs;
 
 template <typename Scheduler_configuration,
           template <typename> typename Fiber,

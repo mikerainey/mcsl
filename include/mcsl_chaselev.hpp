@@ -161,7 +161,7 @@ public:
 
   using fiber_type = Fiber<Scheduler_configuration>;
 
-  using cl_deque_type = chase_lev_deque<fiber_type>;
+  using deque_type = chase_lev_deque<fiber_type>;
 
   using buffer_type = ringbuffer<fiber_type*>;
 
@@ -178,7 +178,7 @@ public:
   perworker::array<buffer_type> buffers;
 
   static
-  perworker::array<cl_deque_type> deques;
+  perworker::array<deque_type> deques;
 
   // Helper functions
   // ----------------
@@ -204,15 +204,14 @@ public:
 
   static
   void launch(std::size_t nb_workers, std::size_t nb_steal_attempts=1) {
-    bool should_terminate = false;
-    termination_detection_barrier_type termination_barrier;
-    worker_exit_barrier_type worker_exit_barrier(nb_workers);
-    
     using scheduler_status_type = enum scheduler_status_enum {
       scheduler_status_active,
       scheduler_status_finish
     };
 
+    bool should_terminate = false;
+    termination_detection_barrier_type termination_barrier;
+    worker_exit_barrier_type worker_exit_barrier(nb_workers);
     perworker::array<hash_value_type> rngs;
 
     auto random_other_worker = [&] (size_t nb_workers, size_t my_id) -> std::size_t {
@@ -316,18 +315,14 @@ public:
     for (std::size_t i = 0; i < rngs.size(); ++i) {
       rngs[i] = hash(i + 31);
     }
-
     elastic_type::initialize();
-    
     Scheduler_configuration::initialize_signal_handler();
-
     termination_barrier.set_active(true);
     for (std::size_t i = 1; i < nb_workers; i++) {
-      auto t = std::thread([&] {
+      Scheduler_configuration::launch_worker_thread([&] {
         termination_barrier.set_active(true);
         worker_loop(i);
       });
-      t.detach();
     }
     Scheduler_configuration::launch_ping_thread(nb_workers);
     worker_loop(0);
@@ -366,7 +361,7 @@ template <typename Scheduler_configuration,
           template <typename> typename Fiber,
           template <typename,typename> typename Elastic,
           typename Stats, typename Logging>
-perworker::array<typename chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Elastic,Stats,Logging>::cl_deque_type> 
+perworker::array<typename chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Elastic,Stats,Logging>::deque_type> 
 chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Elastic,Stats,Logging>::deques;
 
 template <typename Scheduler_configuration,

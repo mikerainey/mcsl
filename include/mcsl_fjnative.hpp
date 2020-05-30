@@ -122,6 +122,13 @@ public:
     
   }
 
+  template <typename Body>
+  static
+  void launch_worker_thread(const Body& b) {
+    auto t = std::thread(b);
+    t.detach();
+  }
+
   template <template <typename> typename Fiber>
   static
   void schedule(Fiber<basic_scheduler_configuration>* f) {

@@ -167,6 +167,8 @@ public:
 
   using elastic_type = Elastic<Stats, Logging>;
 
+  using worker_exit_barrier_type = typename Scheduler_configuration::worker_exit_barrier_type;
+
   using termination_detection_barrier_type = typename Scheduler_configuration::termination_detection_barrier_type;
 
   // Worker-local memory
@@ -204,10 +206,7 @@ public:
   void launch(std::size_t nb_workers, std::size_t nb_steal_attempts=1) {
     bool should_terminate = false;
     termination_detection_barrier_type termination_barrier;
-
-    std::size_t nb_workers_exited = 0;
-    std::mutex exit_lock;
-    std::condition_variable exit_condition_variable;
+    worker_exit_barrier_type worker_exit_barrier(nb_workers);
     perworker::array<pthread_t> pthreads;
     
     using scheduler_status_type = enum scheduler_status_enum {
@@ -312,16 +311,7 @@ public:
         status = acquire();
       }
       Scheduler_configuration::wait_to_terminate_ping_thread();
-      {
-        std::unique_lock<std::mutex> lk(exit_lock);
-        auto nb = ++nb_workers_exited;
-        if (my_id == 0) {
-          exit_condition_variable.wait(
-              lk, [&] { return nb_workers_exited == nb_workers; });
-        } else if (nb == nb_workers) {
-          exit_condition_variable.notify_one();
-        }
-      }
+      Scheduler_configuration::worker_exit_barrier_wait(my_id, worker_exit_barrier);
     };
     
     for (std::size_t i = 0; i < rngs.size(); ++i) {

@@ -63,10 +63,45 @@ using basic_elastic = default_elastic<Stats, Logging>;
 #endif  
 
 /*---------------------------------------------------------------------*/
+/* Worker-thread exit barrier */
+
+class worker_exit_barrier {
+private:
+
+  std::size_t nb_workers;
+  std::size_t nb_workers_exited = 0;
+  std::mutex exit_lock;
+  std::condition_variable exit_condition_variable;
+
+public:
+
+  worker_exit_barrier(std::size_t nb_workers) : nb_workers(nb_workers) { }
+
+  void wait(std::size_t my_id)  {
+    std::unique_lock<std::mutex> lk(exit_lock);
+    auto nb = ++nb_workers_exited;
+    if (my_id == 0) {
+      exit_condition_variable.wait(
+        lk, [&] { return nb_workers_exited == nb_workers; });
+    } else if (nb == nb_workers) {
+      exit_condition_variable.notify_one();
+    }
+  }
+
+};
+
+/*---------------------------------------------------------------------*/
 /* Basic scheduler configuration */
 
 class basic_scheduler_configuration {
 public:
+
+  using worker_exit_barrier_type = worker_exit_barrier;
+
+  static
+  void worker_exit_barrier_wait(std::size_t my_id, worker_exit_barrier_type& e) {
+    e.wait(my_id);
+  }
   
   static
   void initialize_worker() {

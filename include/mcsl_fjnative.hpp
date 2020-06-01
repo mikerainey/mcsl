@@ -98,11 +98,6 @@ class basic_scheduler_configuration {
 public:
 
   using worker_exit_barrier_type = worker_exit_barrier;
-
-  static
-  void worker_exit_barrier_wait(std::size_t my_id, worker_exit_barrier_type& e) {
-    e.wait(my_id);
-  }
   
   static
   void initialize_worker() {

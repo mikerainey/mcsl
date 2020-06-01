@@ -308,7 +308,7 @@ public:
         status = acquire();
       }
       Scheduler_configuration::wait_to_terminate_ping_thread();
-      Scheduler_configuration::worker_exit_barrier_wait(my_id, worker_exit_barrier);
+      worker_exit_barrier.wait(my_id);
     };
     
     for (std::size_t i = 0; i < rngs.size(); ++i) {

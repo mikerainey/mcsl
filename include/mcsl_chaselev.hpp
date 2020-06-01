@@ -2,7 +2,6 @@
 
 #include <memory>
 #include <assert.h>
-#include <thread>
 #include <condition_variable>
 #include <iostream>
 

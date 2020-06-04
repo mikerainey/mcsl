@@ -3,6 +3,7 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <thread>
+#include <condition_variable>
 
 #include "mcsl_fiber.hpp"
 #include "mcsl_snzi.hpp"
@@ -98,7 +99,14 @@ class basic_scheduler_configuration {
 public:
 
   using worker_exit_barrier_type = worker_exit_barrier;
-  
+
+  template <typename Body>
+  static
+  void launch_worker_thread(const Body& b) {
+    auto t = std::thread(b);
+    t.detach();
+  }
+
   static
   void initialize_worker() {
   }  
@@ -116,13 +124,6 @@ public:
   static
   void launch_ping_thread(std::size_t) {
     
-  }
-
-  template <typename Body>
-  static
-  void launch_worker_thread(const Body& b) {
-    auto t = std::thread(b);
-    t.detach();
   }
 
   template <template <typename> typename Fiber>

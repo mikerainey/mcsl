@@ -7,7 +7,10 @@
 #include <algorithm>
 #include <memory>
 
+#if defined(MCSL_LINUX)
 #include "cmdline.hpp"
+#endif
+
 #include "mcsl_util.hpp"
 
 namespace mcsl {
@@ -136,6 +139,7 @@ public:
   }
       
   void print_text(FILE* f) {
+#if defined(MCSL_LINUX)
     fprintf(f, "%lf\t%ld\t%s\t", timestamp, worker_id, name_of(tag).c_str());
     switch (tag) {
       case program_point: {
@@ -169,6 +173,9 @@ public:
       }
     }
     fprintf (f, "\n");
+#elif defined(MCSL_NAUTILUS)
+    // later
+#endif
   }
     
 };
@@ -220,11 +227,15 @@ public:
 
   static
   void initialize() {
+#if defined(MCSL_LINUX)
     bool real_time  = deepsea::cmdline::parse_or_default_bool("log_stdout", false);
     bool log_phases = deepsea::cmdline::parse_or_default_bool("log_phases", false);
     bool log_fibers = deepsea::cmdline::parse_or_default_bool("log_fibers", false);
     bool pview      = deepsea::cmdline::parse_or_default_bool("pview", false);
     _initialize(real_time, log_phases, log_fibers, pview);
+#elif defined(MCSL_NAUTILUS)
+    _initialize();
+#endif
   }
   
   static inline
@@ -283,6 +294,7 @@ public:
 
   static
   void _output_bytes(buffer_type& b, bool pview=false, std::string fname=dflt_log_bytes_fname) {
+#if defined(MCSL_LINUX)
     if (fname == "") {
       return;
     }
@@ -291,18 +303,26 @@ public:
       e.print_byte(f);
     }
     fclose(f);
+#elif defined(MCSL_NAUTILUS)
+    // later
+#endif
   }
 
   static
   void output_bytes(buffer_type& b) {
+#if defined(MCSL_LINUX)
     bool pview = deepsea::cmdline::parse_or_default_bool("pview", false);
     auto dflt = pview ? dflt_log_bytes_fname : "";
     std::string fname = deepsea::cmdline::parse_or_default_string("log_bytes_fname", dflt);
     _output_bytes(b, pview, fname);
+#elif defined(MCSL_NAUTILUS)
+    _output_bytes(b);
+#endif
   }
 
   static
   void _output_text(buffer_type& b, std::string fname="") {
+#if defined(MCSL_LINUX)
     if (fname == "") {
       return;
     }
@@ -311,12 +331,19 @@ public:
       e.print_text(f);
     }
     fclose(f);
+#elif defined(MCSL_NAUTILUS)
+    // later
+#endif
   }
 
   static
   void output_text(buffer_type& b) {
+#if defined(MCSL_LINUX)
     std::string fname = deepsea::cmdline::parse_or_default_string("log_text_fname", "");
     _output_text(b, fname);
+#elif defined(MCSL_NAUTILUS)
+    _output_text(b);
+#endif
   }
 
   static

@@ -4,6 +4,15 @@
 
 #include "mcsl_aligned.hpp"
 
+#if defined(MCSL_NAUTILUS)
+extern "C"
+void nk_heartbeat_init_unique_id();
+extern "C"
+void nk_heartbeat_set_unique_id(unsigned id);
+extern "C"
+unsigned nk_heartbeat_read_unique_id();
+#endif
+
 #ifndef MCSL_MAX_NB_WORKERS_LG
 #define MCSL_MAX_NB_WORKERS_LG 7
 #endif
@@ -25,6 +34,8 @@ int default_max_nb_workers = 1 << default_max_nb_workers_lg;
 /*---------------------------------------------------------------------*/
 /* Per-worker, unique id */
 
+#if defined(MCSL_LINUX)
+  
 class unique_id {
 private:
 
@@ -53,6 +64,43 @@ std::atomic<int> unique_id::fresh_id(0);
   
 __thread
 int unique_id::my_id = uninitialized_id;
+
+#elif defined(MCSL_NAUTILUS)
+
+class unique_id {
+private:
+
+  static
+  std::size_t nb_workers;
+
+public:
+
+  static
+  void initialize(std::size_t _nb_workers) {
+    nb_workers = _nb_workers;
+    nk_heartbeat_init_unique_id();
+  }
+
+  static
+  void initialize_tls_worker(std::size_t id) {
+    nk_heartbeat_set_unique_id((unsigned)id);
+  }
+  
+  static
+  std::size_t get_my_id() {
+    return nk_heartbeat_read_unique_id();
+  }
+
+  static
+  std::size_t get_nb_workers() {
+    return nb_workers;
+  }
+
+};
+
+std::size_t unique_id::nb_workers = 0;
+  
+#endif
 
 /*---------------------------------------------------------------------*/
 /* Per-worker array */

@@ -14,13 +14,8 @@ namespace mcsl {
 /*---------------------------------------------------------------------*/
 /* Chase-Lev Work-Stealing Deque data structure
  * 
- * based on the implementation of https://gist.github.com/Amanieu/7347121
- *
- * Dynamic Circular Work-Stealing Deque
- * http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.170.1097&rep=rep1&type=pdf
- *
- * Correct and Efﬁcient Work-Stealing for Weak Memory Models
- * http://www.di.ens.fr/~zappa/readings/ppopp13.pdf
+ * This implementation is based on
+ *   https://gist.github.com/Amanieu/7347121
  */
   
 template <typename Fiber>
@@ -298,7 +293,6 @@ public:
               status = scheduler_status_finish;
               Logging::log_event(initiate_teardown);
               should_terminate = true;
-              // This worker is currently busy, so it has no children!
             }
             current = flush();
           }
@@ -317,7 +311,7 @@ public:
     Scheduler_configuration::initialize_signal_handler();
     termination_barrier.set_active(true);
     for (std::size_t i = 1; i < nb_workers; i++) {
-      Scheduler_configuration::launch_worker_thread([&] {
+      Scheduler_configuration::launch_worker_thread(i, [&] {
         termination_barrier.set_active(true);
         worker_loop(i);
       });

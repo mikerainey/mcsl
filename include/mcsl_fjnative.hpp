@@ -5,6 +5,8 @@
 #include <thread>
 #include <condition_variable>
 
+#define MCSL_LINUX 1
+
 #include "mcsl_fiber.hpp"
 #include "mcsl_snzi.hpp"
 
@@ -102,7 +104,7 @@ public:
 
   template <typename Body>
   static
-  void launch_worker_thread(const Body& b) {
+  void launch_worker_thread(std::size_t, const Body& b) {
     auto t = std::thread(b);
     t.detach();
   }

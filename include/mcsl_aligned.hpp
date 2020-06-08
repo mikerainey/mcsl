@@ -58,7 +58,12 @@ public:
 
 template <std::size_t cache_align_szb=MCSL_CACHE_LINE_SZB>
 void* aligned_alloc(std::size_t sizeb) {
+#if defined(MCSL_LINUX)
   return std::aligned_alloc(cache_align_szb, cache_align_szb * sizeb);
+#elif defined(MCSL_NAUTILUS)
+  auto aligned_sizeb = sizeb + (sizeb % cache_align_szb);
+  return malloc(cache_align_szb + aligned_sizeb); 
+#endif
 }
 
 template <typename Item,

@@ -3,8 +3,23 @@
 #include <cstdint>
 #include <atomic>
 #include <stdarg.h>
+
+#if defined(MCSL_LINUX)
 #include <pthread.h>
 #include <chrono>
+#elif defined(MCSL_NAUTILUS)
+extern "C"
+int printk(const char* fmt, ...);
+extern "C"
+void** nk_get_tid();
+typedef long time_t;
+typedef int clockid_t;
+extern "C"
+int clock_gettime(clockid_t, struct timespec*);
+namespace nautilus {
+#include <nautilus/spinlock.h>
+}
+#endif
 
 namespace mcsl {
 
@@ -77,6 +92,8 @@ void spin_for(uint64_t nb_cycles) {
 
 namespace clock {
 
+#if defined(MCSL_LINUX)
+  
 using time_point_type = std::chrono::time_point<std::chrono::system_clock>;
   
 static inline
@@ -94,6 +111,35 @@ static inline
 double since(time_point_type start) {
   return diff(start, now());
 }
+
+#elif defined(MCSL_NAUTILUS)
+
+using time_point_type = struct timespec;
+  
+static inline
+double diff(time_point_type start, time_point_type finish) {
+  long seconds = finish.tv_sec - start.tv_sec; 
+  long ns = finish.tv_nsec - start.tv_nsec; 
+  if (start.tv_nsec > finish.tv_nsec) { // clock underflow 
+    --seconds; 
+    ns += 1000000000; 
+  }
+  return (double)seconds + (double)ns/(double)1000000000;
+}
+
+static inline
+time_point_type now() {
+  struct timespec te;
+  clock_gettime(CLOCK_MONOTONIC, &te);
+  return te;
+}
+
+static inline
+double since(time_point_type start) {
+  return diff(start, now());
+}
+
+#endif
   
 } // end namespace
   
@@ -113,6 +159,8 @@ bool compare_exchange(std::atomic<T>& cell, T& expected, T desired) {
 
 /*---------------------------------------------------------------------*/
 /* Atomic printing routines */
+
+#if defined(MCSL_LINUX)
   
 pthread_mutex_t print_lock;
   
@@ -164,5 +212,55 @@ void aprintf(const char *fmt, ...) {
   release_print_lock();
   va_end(ap);
 }
+
+#elif defined(MCSL_NAUTILUS)
+
+nautilus::spinlock_t print_lock;
+  
+void init_print_lock() {
+  nautilus::spinlock_init(&print_lock);
+}
+
+void acquire_print_lock() {
+  nautilus::spin_lock(&print_lock);
+}
+
+void release_print_lock() {
+  nautilus::spin_unlock(&print_lock);
+}
+
+void die(const char *fmt, ...) {
+  va_list	ap;
+  va_start (ap, fmt);
+  acquire_print_lock(); {
+    printk(fmt, ap);
+  }
+  release_print_lock();
+  va_end(ap);
+  assert(false);
+}
+
+void afprintf(FILE* stream, const char *fmt, ...) {
+  die("afprintf: todo\n");
+  va_list	ap;
+  va_start (ap, fmt);
+  acquire_print_lock(); {
+    // later: output to file
+  }
+  release_print_lock();
+  va_end(ap);
+}
+
+void aprintf(const char *fmt, ...) {
+  va_list	ap;
+  va_start (ap, fmt);
+  acquire_print_lock(); {
+    printk(fmt, ap);
+  }
+  release_print_lock();
+  va_end(ap);
+}
+  
+#endif
 
 } // end namespace

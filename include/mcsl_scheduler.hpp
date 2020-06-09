@@ -231,7 +231,7 @@ public:
 /*---------------------------------------------------------------------*/
 /* Fibers */
 
- using fiber_status_type = enum fiber_status_enum {
+using fiber_status_type = enum fiber_status_enum {
   fiber_status_continue,
   fiber_status_pause,
   fiber_status_finish,

@@ -403,6 +403,12 @@ public:
     return mcsl::take<minimal_scheduler, Fiber, Stats, Logging, Elastic, Worker, Interrupt>();
   }
 
+  template <template <typename> typename Fiber>
+  static
+  void commit() {
+    mcsl::commit<minimal_scheduler, Fiber, Stats, Logging, Elastic, Worker, Interrupt>();
+  }
+
 };
   
 } // end namespace

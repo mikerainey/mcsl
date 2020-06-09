@@ -147,7 +147,7 @@ public:
 static constexpr
 int dflt_buffer_capacity = 128;
 
-template <class Item>
-using ringbuffer = ringbuffer_idx<inline_allocator<Item, dflt_buffer_capacity>>;
+template <class Item, int capacity=dflt_buffer_capacity>
+using ringbuffer = ringbuffer_idx<inline_allocator<Item, capacity>>;
 
 } // end namespace

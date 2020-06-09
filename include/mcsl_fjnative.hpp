@@ -129,14 +129,48 @@ _mcsl_ctx_restore:
         .cfi_endproc
 )");
 
+namespace mcsl {
+
 static constexpr
 std::size_t stack_alignb = 16;
 
 static constexpr
 std::size_t thread_stack_szb = stack_alignb * (1<<12);
 
-namespace mcsl {
+class stack_allocator {
+public:
+
+  ringbuffer<char*, 16> buf;
+
+  ~stack_allocator() {
+    while (! buf.empty()) {
+      free(buf.pop_back());
+    }
+  }
   
+  char* alloc() {
+    char* p = nullptr;
+    if (! buf.empty()) {
+      p = buf.pop_back();
+    } else {
+      p = (char*)malloc(thread_stack_szb);
+    }
+    return p;
+  }
+
+  void dealloc(char* p) {
+    if (! buf.full()) {
+      buf.push_back(p);
+    } else {
+      free(p);
+    }
+  }
+  
+};
+
+static
+perworker::array<stack_allocator> stack_alloc;
+
 class context {  
 public:
   
@@ -183,7 +217,8 @@ public:
       target->enter(target);
       assert(false);
     }
-    char* stack = (char*)malloc(thread_stack_szb);
+    //    char* stack = (char*)malloc(thread_stack_szb);
+    char* stack = stack_alloc.mine().alloc();
     char* stack_end = &stack[thread_stack_szb];
     stack_end -= (std::size_t)stack_end % stack_alignb;
     void** _ctx = (void**)ctx;    
@@ -296,7 +331,8 @@ public:
     }
     auto s = stack;
     stack = nullptr;
-    free(s);
+    //    free(s);
+    stack_alloc.mine().dealloc(s);
   }
 
   void fork2(forkable_fiber* _f1, forkable_fiber* _f2) {

@@ -34,16 +34,6 @@ void nk_thread_init_fn(void *in, void **out) {
 namespace mcsl {
 
 /*---------------------------------------------------------------------*/
-/* Fiber status */
-
-using fiber_status_type = enum fiber_status_enum {
-  fiber_status_continue,
-  fiber_status_pause,
-  fiber_status_finish,
-  fiber_status_terminate
-};
-
-/*---------------------------------------------------------------------*/
 /* Statistics */
 
 class minimal_stats {
@@ -240,6 +230,13 @@ public:
 
 /*---------------------------------------------------------------------*/
 /* Fibers */
+
+ using fiber_status_type = enum fiber_status_enum {
+  fiber_status_continue,
+  fiber_status_pause,
+  fiber_status_finish,
+  fiber_status_terminate
+};
 
 template <typename Scheduler>
 class minimal_fiber {

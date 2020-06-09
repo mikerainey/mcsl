@@ -140,7 +140,11 @@ std::size_t thread_stack_szb = stack_alignb * (1<<12);
 class stack_allocator {
 public:
 
-  ringbuffer<char*, 16> buf;
+  ringbuffer<char*, 32> buf;
+
+  stack_allocator() {
+    buf.push_back((char*)malloc(thread_stack_szb));
+  }
 
   ~stack_allocator() {
     while (! buf.empty()) {
@@ -217,7 +221,6 @@ public:
       target->enter(target);
       assert(false);
     }
-    //    char* stack = (char*)malloc(thread_stack_szb);
     char* stack = stack_alloc.mine().alloc();
     char* stack_end = &stack[thread_stack_szb];
     stack_end -= (std::size_t)stack_end % stack_alignb;
@@ -331,7 +334,6 @@ public:
     }
     auto s = stack;
     stack = nullptr;
-    //    free(s);
     stack_alloc.mine().dealloc(s);
   }
 

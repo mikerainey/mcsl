@@ -44,7 +44,7 @@ using fiber_status_type = enum fiber_status_enum {
 };
 
 /*---------------------------------------------------------------------*/
-/*  */
+/* Statistics */
 
 class minimal_stats {
 public:
@@ -93,7 +93,7 @@ public:
 };
 
 /*---------------------------------------------------------------------*/
-/*  */
+/* Logging */
 
 using event_kind_type = enum event_kind_enum {
   phases = 0,

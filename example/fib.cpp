@@ -76,14 +76,14 @@ int main(int argc, char** argv) {
 
   deepsea::cmdline::dispatcher d;
   d.add("manual", [&] {
-    using scheduler = mcsl::minimal_scheduler<>;
+    using my_scheduler = mcsl::minimal_scheduler<>;
     auto nb_workers = deepsea::cmdline::parse_or_default_int("proc", 1);
-    auto f_body = new fib_fiber<scheduler>(n, &dst);
-    auto f_term = new mcsl::terminal_fiber<scheduler>;
-    mcsl::fiber<scheduler>::add_edge(f_body, f_term);
+    auto f_body = new fib_fiber<my_scheduler>(n, &dst);
+    auto f_term = new mcsl::terminal_fiber<my_scheduler>;
+    mcsl::fiber<my_scheduler>::add_edge(f_body, f_term);
     f_body->release();
     f_term->release();
-    mcsl::chase_lev_work_stealing_scheduler<scheduler, mcsl::fiber>::launch(nb_workers);
+    mcsl::chase_lev_work_stealing_scheduler<my_scheduler, mcsl::fiber>::launch(nb_workers);
     printf("result %ld\n", dst);
   });
   d.add("fjnative", [&] {

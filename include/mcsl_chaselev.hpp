@@ -225,16 +225,14 @@ public:
         auto i = nb_steal_attempts;
         auto target = random_other_worker(nb_workers, my_id);
         do {
-          if (! deques[target].empty()) {
-            termination_barrier.set_active(true);
-            current = deques[target].steal();
-            if (current == nullptr) {
-              termination_barrier.set_active(false);
-            } else {
-              Stats::increment(Stats::configuration_type::nb_steals);
-              break;
-            }
-          }
+	  termination_barrier.set_active(true);
+	  current = deques[target].steal();
+	  if (current == nullptr) {
+	    termination_barrier.set_active(false);
+	  } else {
+	    Stats::increment(Stats::configuration_type::nb_steals);
+	    break;
+	  }
           i--;
           target = random_other_worker(nb_workers, my_id);
         } while (i > 0);

@@ -269,7 +269,9 @@ public:
   void wake_children() { }
 
   static
-  void try_to_sleep(std::size_t) { }
+  void try_to_sleep(std::size_t) {
+    cycles::spin_for(1000);
+  }
 
   static
   void accept_lifelines() { }

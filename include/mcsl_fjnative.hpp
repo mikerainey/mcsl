@@ -2,20 +2,22 @@
 
 #include <sys/time.h>
 #include <sys/resource.h>
-#include <thread>
-#include <condition_variable>
+#include <map>
 
 #define MCSL_LINUX 1
 
 #include "mcsl_fiber.hpp"
-#include "mcsl_snzi.hpp"
+#include "mcsl_chaselev.hpp"
+#include "mcsl_stats.hpp"
+#include "mcsl_logging.hpp"
+#include "mcsl_elastic.hpp"
 
 /*---------------------------------------------------------------------*/
-/* Basic stats */
+/* Stats */
 
 namespace mcsl {
 
-class basic_stats_configuration {
+class fjnative_stats_configuration {
 public:
 
 #ifdef MCSL_ENABLE_STATS
@@ -44,105 +46,32 @@ public:
   
 };
 
-using basic_stats = stats_base<basic_stats_configuration>;
+using fjnative_stats = stats_base<fjnative_stats_configuration>;
 
 /*---------------------------------------------------------------------*/
-/* Basic logging */
+/* Logging */
 
 #ifdef MCSL_ENABLE_LOGGING
-using basic_logging = logging_base<true>;
+using fjnative_logging = logging_base<true>;
 #else
-using basic_logging = logging_base<false>;
+using fjnative_logging = logging_base<false>;
 #endif
 
 /*---------------------------------------------------------------------*/
-/* Basic elastic work stealing */
+/* Elastic work stealing */
 
 #ifdef MCSL_DISABLE_ELASTIC
 template <typename Stats, typename Logging>
-using basic_elastic = noop_elastic<Stats, Logging>;
+using fjnative_elastic = minimal_elastic<Stats, Logging>;
 #else
 template <typename Stats, typename Logging>
-using basic_elastic = default_elastic<Stats, Logging>;
+using fjnative_elastic = elastic<Stats, Logging>;
 #endif  
 
 /*---------------------------------------------------------------------*/
-/* Worker-thread exit barrier */
+/* Scheduler configuration */
 
-class worker_exit_barrier {
-private:
-
-  std::size_t nb_workers;
-  std::size_t nb_workers_exited = 0;
-  std::mutex exit_lock;
-  std::condition_variable exit_condition_variable;
-
-public:
-
-  worker_exit_barrier(std::size_t nb_workers) : nb_workers(nb_workers) { }
-
-  void wait(std::size_t my_id)  {
-    std::unique_lock<std::mutex> lk(exit_lock);
-    auto nb = ++nb_workers_exited;
-    if (my_id == 0) {
-      exit_condition_variable.wait(
-        lk, [&] { return nb_workers_exited == nb_workers; });
-    } else if (nb == nb_workers) {
-      exit_condition_variable.notify_one();
-    }
-  }
-
-};
-
-/*---------------------------------------------------------------------*/
-/* Basic scheduler configuration */
-
-class basic_scheduler_configuration {
-public:
-
-  using worker_exit_barrier_type = worker_exit_barrier;
-
-  template <typename Body>
-  static
-  void launch_worker_thread(std::size_t, const Body& b) {
-    auto t = std::thread(b);
-    t.detach();
-  }
-
-  static
-  void initialize_worker() {
-  }  
-
-  static
-  void initialize_signal_handler() {
-
-  }
-
-  static
-  void wait_to_terminate_ping_thread() {
-    
-  }
-  
-  static
-  void launch_ping_thread(std::size_t) {
-    
-  }
-
-  template <template <typename> typename Fiber>
-  static
-  void schedule(Fiber<basic_scheduler_configuration>* f) {
-    mcsl::schedule<basic_scheduler_configuration, Fiber, basic_elastic, basic_stats, basic_logging>(f);
-  }
-
-  template <template <typename> typename Fiber>
-  static
-  Fiber<basic_scheduler_configuration>* take() {
-    return mcsl::take<basic_scheduler_configuration, Fiber, basic_elastic, basic_stats, basic_logging>();
-  }
-
-  using termination_detection_barrier_type = noop_termination_detection_barrier;
-
-};
+using fjnative_scheduler = minimal_scheduler<fjnative_stats, fjnative_logging, fjnative_elastic>;
 
 } // end namespace
 
@@ -291,7 +220,7 @@ public:
 static
 perworker::array<forkable_fiber*> current_fiber;
 
-class fjnative : public fiber<basic_scheduler_configuration>, public forkable_fiber {
+class fjnative : public fiber<fjnative_scheduler>, public forkable_fiber {
 public:
 
   using context_type = context::context_type;
@@ -371,8 +300,8 @@ public:
   }
 
   void fork2(forkable_fiber* _f1, forkable_fiber* _f2) {
-    mcsl::basic_stats::increment(mcsl::basic_stats_configuration::nb_fibers);
-    mcsl::basic_stats::increment(mcsl::basic_stats_configuration::nb_fibers);
+    mcsl::fjnative_stats::increment(mcsl::fjnative_stats_configuration::nb_fibers);
+    mcsl::fjnative_stats::increment(mcsl::fjnative_stats_configuration::nb_fibers);
     fjnative* f1 = (fjnative*)_f1;
     fjnative* f2 = (fjnative*)_f2;
     status = fiber_status_pause;
@@ -391,7 +320,7 @@ public:
     // run begin of sched->exec(f1) until f1->exec()
     f1->run();
     // if f2 was not stolen, then it can run in the same stack as parent
-    auto f = basic_scheduler_configuration::take<fiber>();
+    auto f = fjnative_scheduler::take<fiber>();
     if (f == nullptr) {
       status = fiber_status_finish;
       //      util::atomic::aprintf("%d %d detected steal of %p\n",id,util::worker::get_my_id(),f2);
@@ -452,12 +381,12 @@ void fork2(const F1& f1, const F2& f2) {
   
 bool started = false;
   
-template <typename Scheduler_configuration, typename Stats, typename Logging,
+template <typename Scheduler, typename Stats, typename Logging,
           typename Bench_pre, typename Bench_post>
 void launch0(const Bench_pre& bench_pre,
 	     const Bench_post& bench_post,
-	     fiber<Scheduler_configuration>* f_body) {
-  using scheduler_type = chase_lev_work_stealing_scheduler<Scheduler_configuration, fiber, basic_elastic, Stats, Logging>;
+	     fiber<Scheduler>* f_body) {
+  using scheduler_type = chase_lev_work_stealing_scheduler<Scheduler, fiber, Stats, Logging, fjnative_elastic>;
   std::size_t nb_workers = deepsea::cmdline::parse_or_default_int("proc", 1);
   std::size_t nb_steal_attempts = 1;
   {
@@ -496,13 +425,13 @@ void launch0(const Bench_pre& bench_pre,
     auto f_before_bench = &fj_before_bench;
     auto f_after_bench = &fj_after_bench;
     auto f_bench_post = &fj_bench_post;
-    auto f_term = new terminal_fiber<Scheduler_configuration>;
-    fiber<Scheduler_configuration>::add_edge(f_init, f_bench_pre);
-    fiber<Scheduler_configuration>::add_edge(f_bench_pre, f_before_bench);
-    fiber<Scheduler_configuration>::add_edge(f_before_bench, f_body);
-    fiber<Scheduler_configuration>::add_edge(f_body, f_after_bench);
-    fiber<Scheduler_configuration>::add_edge(f_after_bench, f_bench_post);
-    fiber<Scheduler_configuration>::add_edge(f_bench_post, f_term);
+    auto f_term = new terminal_fiber<Scheduler>;
+    fiber<Scheduler>::add_edge(f_init, f_bench_pre);
+    fiber<Scheduler>::add_edge(f_bench_pre, f_before_bench);
+    fiber<Scheduler>::add_edge(f_before_bench, f_body);
+    fiber<Scheduler>::add_edge(f_body, f_after_bench);
+    fiber<Scheduler>::add_edge(f_after_bench, f_bench_post);
+    fiber<Scheduler>::add_edge(f_bench_post, f_term);
     f_init->release();
     f_bench_pre->release();
     f_before_bench->release();
@@ -536,7 +465,7 @@ void launch(const Bench_pre& bench_pre,
             const Bench_body& bench_body) {
   fjnative_of_function fj_body(bench_body);
   auto f_body = &fj_body;
-  launch0<basic_scheduler_configuration, basic_stats, basic_logging, Bench_pre, Bench_post>(bench_pre, bench_post, f_body);
+  launch0<fjnative_scheduler, fjnative_stats, fjnative_logging, Bench_pre, Bench_post>(bench_pre, bench_post, f_body);
 }
 
 } // end namespace

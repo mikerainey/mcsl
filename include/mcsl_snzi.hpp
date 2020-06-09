@@ -222,10 +222,10 @@ public:
 };
 
 /*---------------------------------------------------------------------*/
-/* SNZI-based, termination-detection barrier */
+/* SNZI-based, termination detection */
 
 template <std::size_t height=perworker::default_max_nb_workers_lg>
-class snzi_termination_detection_barrier {
+class snzi_termination_detection {
 private:
 
   snzi_fixed_capacity_tree<height> tree;
@@ -247,20 +247,4 @@ public:
   
 };
 
-/*---------------------------------------------------------------------*/
-/* Trivial termination detector, which does nothing */
-  
-class noop_termination_detection_barrier {
-public:
-
-  bool set_active(bool active) {
-    return false;
-  }
-
-  bool is_terminated() {
-    return false;
-  }
-  
-};
-  
 } // end namespace

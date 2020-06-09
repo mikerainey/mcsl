@@ -14,8 +14,8 @@ int64_t fib_seq(int64_t n) {
 
 int64_t fib_T = 15;
 
-template <typename Scheduler_configuration>
-class fib_fiber : public mcsl::fiber<Scheduler_configuration> {
+template <typename Scheduler>
+class fib_fiber : public mcsl::fiber<Scheduler> {
 public:
 
   using trampoline_type = enum { entry, exit };
@@ -26,7 +26,7 @@ public:
   int64_t d1, d2;
 
   fib_fiber(int64_t n, int64_t* dst)
-    : mcsl::fiber<Scheduler_configuration>(), n(n), dst(dst) { }
+    : mcsl::fiber<Scheduler>(), n(n), dst(dst) { }
 
   mcsl::fiber_status_type run() {
     switch (trampoline) {
@@ -37,12 +37,10 @@ public:
       }
       auto f1 = new fib_fiber(n-1, &d1);
       auto f2 = new fib_fiber(n-2, &d2);
-      mcsl::fiber<Scheduler_configuration>::add_edge(f1, this);
-      mcsl::fiber<Scheduler_configuration>::add_edge(f2, this);
+      mcsl::fiber<Scheduler>::add_edge(f1, this);
+      mcsl::fiber<Scheduler>::add_edge(f2, this);
       f1->release();
       f2->release();
-      mcsl::basic_stats::increment(mcsl::basic_stats_configuration::nb_fibers);
-      mcsl::basic_stats::increment(mcsl::basic_stats_configuration::nb_fibers);
       trampoline = exit;
       return mcsl::fiber_status_pause;	  
     }
@@ -74,23 +72,31 @@ int main(int argc, char** argv) {
   int64_t n = 30;
   int64_t dst = 0;
 
-  /*
-    deepsea::cmdline::set(argc, argv);
-    n = deepsea::cmdline::parse_or_default_int("n", n);
-  auto bench_pre = [&] { };
-    auto bench_post = [] {};
-    auto f_body = new fib_fiber<mcsl::basic_scheduler_configuration>(n, &dst);
-    mcsl::launch0<mcsl::basic_scheduler_configuration, mcsl::basic_stats, mcsl::basic_logging, decltype(bench_pre), decltype(bench_post)>(argc, argv, bench_pre, bench_post, f_body);
-    return 0; */
-  
-  mcsl::launch([&] {
-    n = deepsea::cmdline::parse_or_default_int("n", n);
-  },
-  [&] {
-    assert(fib_seq(n) == dst);
+  n = deepsea::cmdline::parse_or_default_int("n", n);
+
+  deepsea::cmdline::dispatcher d;
+  d.add("manual", [&] {
+    using scheduler = mcsl::minimal_scheduler<>;
+    auto nb_workers = deepsea::cmdline::parse_or_default_int("proc", 1);
+    auto f_body = new fib_fiber<scheduler>(n, &dst);
+    auto f_term = new mcsl::terminal_fiber<scheduler>;
+    mcsl::fiber<scheduler>::add_edge(f_body, f_term);
+    f_body->release();
+    f_term->release();
+    using scheduler_type = mcsl::chase_lev_work_stealing_scheduler<scheduler, mcsl::fiber>;
+    scheduler_type::launch(nb_workers);
     printf("result %ld\n", dst);
-  }, [&] {
-    dst = fib_fjnative(n);
   });
-  return 0;
+  d.add("fjnative", [&] {
+    mcsl::launch([&] {
+     }, [&] {
+      assert(fib_seq(n) == dst);
+      printf("result %ld\n", dst);
+    }, [&] {
+      dst = fib_fjnative(n);
+    });
+  });
+  d.dispatch_or_default("scheduler", "fjnative");
+  
+  return 0; 
 }

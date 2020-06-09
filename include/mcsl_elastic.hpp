@@ -7,13 +7,13 @@
 namespace mcsl {
 
 /* A standard semaphore implemented using system semaphore support */
-class Semaphore {
+class semaphore {
   sem_t sem;
 public:
-  Semaphore()  { sem_init(&sem, 0, 0); }
+  semaphore()  { sem_init(&sem, 0, 0); }
   void post()  { sem_post(&sem); }
   void wait()  { sem_wait(&sem); }
-  ~Semaphore() { sem_destroy(&sem);}
+  ~semaphore() { sem_destroy(&sem);}
 };
 
 /* An implementation of semaphore that is binary (0 or 1) with spinning wait 
@@ -23,26 +23,26 @@ public:
  * - Only the processor owning the semaphore will ever wait on it
  * - Every WATI is paired with exactly one POST and vice versa.
  */
-class SpinningBinarySemaphore {
+class spinning_binary_semaphore {
    // 0  -> No processor is waiting on the semaphore
    // 1  -> A post has been issued to the semaphore
    // -1 -> A processor is waiting on the semaphore 
    std::atomic<int> flag;
 public:
-  SpinningBinarySemaphore() : flag(0) {}
+  spinning_binary_semaphore() : flag(0) {}
 
   void post() {
-    int oldValue = flag++;
-    assert(oldValue <= 0);
+    int old_value = flag++;
+    assert(old_value <= 0);
   }
 
   void wait() {
-    int oldValue = flag--;
-    assert(oldValue >= 0);
+    int old_value = flag--;
+    assert(old_value >= 0);
     while (flag.load() < 0); // Spinning
   }
 
-  ~SpinningBinarySemaphore() {
+  ~spinning_binary_semaphore() {
     assert(flag.load() == 0); // The semaphore has to be balanced
   }
 };
@@ -123,7 +123,7 @@ public:
 using elastic_policy_type = enum elastic_enum { elastic_policy_enabled, elastic_policy_disabled };
 
 template <typename Stats, typename Logging>
-class default_elastic {
+class elastic {
 public:
 
   static
@@ -134,9 +134,9 @@ public:
   using elastic_fields_type = struct elastic_fields_struct {
     atomic_status_word status;
 #ifdef MCSL_USE_SPINNING_SEMAPHORE
-    SpinningBinarySemaphore sem;     
+    spinning_binary_semaphore sem;     
 #else
-    Semaphore sem;
+    semaphore sem;
 #endif
     size_t next;    // Next pointer for the wake-up list
     hash_value_type rng;
@@ -231,30 +231,9 @@ public:
 };
 
 template <typename Stats, typename Logging>
-perworker::array<typename default_elastic<Stats,Logging>::elastic_fields_type> default_elastic<Stats,Logging>::fields;
+perworker::array<typename elastic<Stats,Logging>::elastic_fields_type> elastic<Stats,Logging>::fields;
 
 template <typename Stats, typename Logging>
-elastic_policy_type default_elastic<Stats,Logging>::policy = elastic_policy_enabled;
-
-/*---------------------------------------------------------------------*/
-/* Trivial replacement for elastic work stealing */
-  
-template <typename Stats, typename Logging>
-class noop_elastic {
-public:
-
-  static
-  void wake_children() { }
-
-  static
-  void try_to_sleep(std::size_t) { }
-
-  static
-  void accept_lifelines() { }
-
-  static
-  void initialize() { }
-  
-};
+elastic_policy_type elastic<Stats,Logging>::policy = elastic_policy_enabled;
 
 } // end namespace

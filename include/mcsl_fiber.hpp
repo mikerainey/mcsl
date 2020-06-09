@@ -1,13 +1,17 @@
 #pragma once
 
-#include "mcsl_chaselev.hpp"
+#include <assert.h>
+#include <atomic>
+
+#include "mcsl_scheduler.hpp"
+#include "mcsl_aligned.hpp"
 
 namespace mcsl {
   
 /*---------------------------------------------------------------------*/
 /* Fibers */
 
-template <typename Scheduler_configuration>
+template <typename Scheduler>
 class fiber {
 private:
 
@@ -39,7 +43,7 @@ public:
 
   void release() {
     if (--incounter == 0) {
-      Scheduler_configuration::schedule(this);
+      Scheduler::schedule(this);
     }
   }
 
@@ -78,11 +82,11 @@ public:
  * scheduler. 
  */
   
-template <typename Scheduler_configuration>
-class terminal_fiber : public fiber<Scheduler_configuration> {
+template <typename Scheduler>
+class terminal_fiber : public fiber<Scheduler> {
 public:
   
-  terminal_fiber() : fiber<Scheduler_configuration>() { }
+  terminal_fiber() : fiber<Scheduler>() { }
   
   fiber_status_type run() {
     return fiber_status_terminate;

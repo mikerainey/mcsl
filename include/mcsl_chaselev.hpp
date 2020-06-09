@@ -2,12 +2,10 @@
 
 #include <memory>
 #include <assert.h>
-#include <iostream>
 
-#include "mcsl_stats.hpp"
-#include "mcsl_logging.hpp"
-#include "mcsl_elastic.hpp"
+#include "mcsl_perworker.hpp"
 #include "mcsl_fixedcapacity.hpp"
+#include "mcsl_scheduler.hpp"
 
 namespace mcsl {
   
@@ -134,35 +132,26 @@ public:
   
 /*---------------------------------------------------------------------*/
 /* Work-stealing scheduler  */
-
-using fiber_status_type = enum fiber_status_enum {
-  fiber_status_continue,
-  fiber_status_pause,
-  fiber_status_finish,
-  fiber_status_terminate
-};
   
-template <typename Scheduler_configuration,
-          template <typename> typename Fiber,
-          template <typename,typename> typename Elastic,
-          typename Stats, typename Logging>
+template <typename Scheduler,
+          template <typename> typename Fiber=minimal_fiber,
+          typename Stats=minimal_stats, typename Logging=minimal_logging,
+          template <typename, typename> typename Elastic=minimal_elastic,
+          typename Worker=minimal_worker,
+          typename Interrupt=minimal_interrupt>
 class chase_lev_work_stealing_scheduler {
 public:
 
   // Type aliases
   // ------------
 
-  using fiber_type = Fiber<Scheduler_configuration>;
+  using fiber_type = Fiber<Scheduler>;
 
   using deque_type = chase_lev_deque<fiber_type>;
 
   using buffer_type = ringbuffer<fiber_type*>;
 
   using elastic_type = Elastic<Stats, Logging>;
-
-  using worker_exit_barrier_type = typename Scheduler_configuration::worker_exit_barrier_type;
-
-  using termination_detection_barrier_type = typename Scheduler_configuration::termination_detection_barrier_type;
 
   // Worker-local memory
   // -------------------
@@ -203,8 +192,8 @@ public:
     };
 
     bool should_terminate = false;
-    termination_detection_barrier_type termination_barrier;
-    worker_exit_barrier_type worker_exit_barrier(nb_workers);
+    typename Worker::termination_detection_type termination_barrier;
+    typename Worker::worker_exit_barrier worker_exit_barrier(nb_workers);
     perworker::array<hash_value_type> rngs;
 
     auto random_other_worker = [&] (size_t nb_workers, size_t my_id) -> std::size_t {
@@ -271,7 +260,7 @@ public:
     };
 
     auto worker_loop = [&] (std::size_t my_id) {
-      Scheduler_configuration::initialize_worker();
+      Worker::initialize_worker();
       auto &my_deque = deques.mine();
       scheduler_status_type status = scheduler_status_active;
       fiber_type *current = nullptr;
@@ -300,7 +289,7 @@ public:
         assert((current == nullptr) && my_deque.empty());
         status = acquire();
       }
-      Scheduler_configuration::wait_to_terminate_ping_thread();
+      Interrupt::wait_to_terminate_ping_thread();
       worker_exit_barrier.wait(my_id);
     };
     
@@ -308,15 +297,15 @@ public:
       rngs[i] = hash(i + 31);
     }
     elastic_type::initialize();
-    Scheduler_configuration::initialize_signal_handler();
+    Interrupt::initialize_signal_handler();
     termination_barrier.set_active(true);
     for (std::size_t i = 1; i < nb_workers; i++) {
-      Scheduler_configuration::launch_worker_thread(i, [&] {
+      Worker::launch_worker_thread(i, [&] {
         termination_barrier.set_active(true);
         worker_loop(i);
       });
     }
-    Scheduler_configuration::launch_ping_thread(nb_workers);
+    Interrupt::launch_ping_thread(nb_workers);
     worker_loop(0);
   }
 
@@ -349,42 +338,73 @@ public:
 
 };
 
-template <typename Scheduler_configuration,
+template <typename Scheduler,
           template <typename> typename Fiber,
-          template <typename,typename> typename Elastic,
-          typename Stats, typename Logging>
-perworker::array<typename chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Elastic,Stats,Logging>::deque_type> 
-chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Elastic,Stats,Logging>::deques;
+          typename Stats, typename Logging,
+          template <typename, typename> typename Elastic,
+          typename Worker,
+          typename Interrupt>
+perworker::array<typename chase_lev_work_stealing_scheduler<Scheduler,Fiber,Stats,Logging,Elastic,Worker,Interrupt>::buffer_type> 
+chase_lev_work_stealing_scheduler<Scheduler,Fiber,Stats,Logging,Elastic,Worker,Interrupt>::buffers;
 
-template <typename Scheduler_configuration,
+template <typename Scheduler,
           template <typename> typename Fiber,
-          template <typename,typename> typename Elastic,
-          typename Stats, typename Logging>
-perworker::array<typename chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Elastic,Stats,Logging>::buffer_type> 
-chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Elastic,Stats,Logging>::buffers;
+          typename Stats, typename Logging,
+          template <typename, typename> typename Elastic,
+          typename Worker,
+          typename Interrupt>
+perworker::array<typename chase_lev_work_stealing_scheduler<Scheduler,Fiber,Stats,Logging,Elastic,Worker,Interrupt>::deque_type>
+chase_lev_work_stealing_scheduler<Scheduler,Fiber,Stats,Logging,Elastic,Worker,Interrupt>::deques;
 
-template <typename Scheduler_configuration,
+template <typename Scheduler,
           template <typename> typename Fiber,
-          template <typename,typename> typename Elastic,
-          typename Stats, typename Logging>
-Fiber<Scheduler_configuration>* take() {
-  return chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Elastic,Stats,Logging>::take();  
+          typename Stats, typename Logging,
+          template <typename, typename> typename Elastic,
+          typename Worker,
+          typename Interrupt>
+Fiber<Scheduler>* take() {
+  return chase_lev_work_stealing_scheduler<Scheduler,Fiber,Stats,Logging,Elastic,Worker,Interrupt>::take();  
 }
 
-template <typename Scheduler_configuration,
+template <typename Scheduler,
           template <typename> typename Fiber,
-          template <typename,typename> typename Elastic,
-          typename Stats, typename Logging>
-void schedule(Fiber<Scheduler_configuration>* f) {
-  chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Elastic,Stats,Logging>::schedule(f);  
+          typename Stats, typename Logging,
+          template <typename, typename> typename Elastic,
+          typename Worker,
+          typename Interrupt>
+void schedule(Fiber<Scheduler>* f) {
+  chase_lev_work_stealing_scheduler<Scheduler,Fiber,Stats,Logging,Elastic,Worker,Interrupt>::schedule(f);  
 }
 
-template <typename Scheduler_configuration,
+template <typename Scheduler,
           template <typename> typename Fiber,
-          template <typename,typename> typename Elastic,
-          typename Stats, typename Logging>
+          typename Stats, typename Logging,
+          template <typename, typename> typename Elastic,
+          typename Worker,
+          typename Interrupt>
 void commit() {
-  chase_lev_work_stealing_scheduler<Scheduler_configuration,Fiber,Elastic,Stats,Logging>::commit();
+  chase_lev_work_stealing_scheduler<Scheduler,Fiber,Stats,Logging,Elastic,Worker,Interrupt>::commit();
 }
+
+template <typename Stats=minimal_stats, typename Logging=minimal_logging,
+          template <typename, typename> typename Elastic=minimal_elastic,
+          typename Worker=minimal_worker,
+          typename Interrupt=minimal_interrupt>
+class minimal_scheduler {
+public:
+
+  template <template <typename> typename Fiber>
+  static
+  void schedule(Fiber<minimal_scheduler>* f) {
+    mcsl::schedule<minimal_scheduler, Fiber, Stats, Logging, Elastic, Worker, Interrupt>(f);
+  }
+
+  template <template <typename> typename Fiber>
+  static
+  Fiber<minimal_scheduler>* take() {
+    return mcsl::take<minimal_scheduler, Fiber, Stats, Logging, Elastic, Worker, Interrupt>();
+  }
+
+};
   
 } // end namespace

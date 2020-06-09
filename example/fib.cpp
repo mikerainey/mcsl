@@ -83,8 +83,7 @@ int main(int argc, char** argv) {
     mcsl::fiber<scheduler>::add_edge(f_body, f_term);
     f_body->release();
     f_term->release();
-    using scheduler_type = mcsl::chase_lev_work_stealing_scheduler<scheduler, mcsl::fiber>;
-    scheduler_type::launch(nb_workers);
+    mcsl::chase_lev_work_stealing_scheduler<scheduler, mcsl::fiber>::launch(nb_workers);
     printf("result %ld\n", dst);
   });
   d.add("fjnative", [&] {

@@ -290,7 +290,6 @@ public:
       Interrupt::wait_to_terminate_ping_thread();
       worker_exit_barrier.wait(my_id);
     };
-    
     for (std::size_t i = 0; i < rngs.size(); ++i) {
       rngs[i] = hash(i + 31);
     }
@@ -298,7 +297,7 @@ public:
     Interrupt::initialize_signal_handler();
     termination_barrier.set_active(true);
     for (std::size_t i = 1; i < nb_workers; i++) {
-      Worker::launch_worker_thread(i, [&] {
+      Worker::launch_worker_thread(i, [i, &worker_loop, &termination_barrier] {
         termination_barrier.set_active(true);
         worker_loop(i);
       });

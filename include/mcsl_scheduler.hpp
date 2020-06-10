@@ -30,6 +30,7 @@ void nk_thread_init_fn(void *in, void **out) {
 #endif
 
 #include "mcsl_util.hpp"
+#include "mcsl_perworker.hpp"
 
 namespace mcsl {
 
@@ -156,8 +157,11 @@ public:
 
   template <typename Body>
   static
-  void launch_worker_thread(std::size_t, const Body& b) {
-    auto t = std::thread(b);
+  void launch_worker_thread(std::size_t id, const Body& b) {
+    auto t = std::thread([id, &b] {
+      perworker::unique_id::initialize_worker(id);
+      b();
+    });
     t.detach();
   }
 
@@ -201,7 +205,10 @@ public:
   template <typename Body>
   static
   void launch_worker_thread(std::size_t id, const Body& b) {
-    std::function<void(std::size_t)> f = [&] (std::size_t id) { b(id); };
+    std::function<void(std::size_t)> f = [&] (std::size_t id) {
+      perworker::unique_id::initialize_worker(id);
+      b(id);
+    };
     nk_worker_activation_type p = new nk_worker_activation_type(id, f);
     nk_thread_start(nk_thread_init_fn, (void*)p,0,0,TSTACK_DEFAULT,0,-1);
 
@@ -288,19 +295,13 @@ class minimal_interrupt {
 public:
 
   static
-  void initialize_signal_handler() {
-
-  }
+  void initialize_signal_handler() { }
 
   static
-  void wait_to_terminate_ping_thread() {
-    
-  }
+  void wait_to_terminate_ping_thread() { }
   
   static
-  void launch_ping_thread(std::size_t) {
-    
-  }
+  void launch_ping_thread(std::size_t) { }
 
 };
   

@@ -39,11 +39,11 @@ int default_max_nb_workers = 1 << default_max_nb_workers_lg;
 class unique_id {
 private:
 
+  static
+  int nb_workers;
+
   static constexpr
   int uninitialized_id = -1;
-
-  static
-  std::atomic<int> fresh_id;
 
   static __thread
   int my_id;
@@ -51,16 +51,32 @@ private:
 public:
 
   static
+  void initialize(std::size_t _nb_workers) {
+    initialize_worker(0);
+    nb_workers = _nb_workers;
+  }
+
+  static
+  void initialize_worker(std::size_t id) {
+    assert(my_id == uninitialized_id);
+    my_id = id;
+  }
+
+  static
   std::size_t get_my_id() {
-    if (my_id == uninitialized_id) {
-      my_id = fresh_id++;
-    }
+    assert(my_id != uninitialized_id);
     return (std::size_t)my_id;
+  }
+
+  static
+  std::size_t get_nb_workers() {
+    assert(nb_workers != -1);
+    return nb_workers;
   }
 
 };
 
-std::atomic<int> unique_id::fresh_id(0);
+int unique_id::nb_workers = -1;
   
 __thread
 int unique_id::my_id = uninitialized_id;
@@ -82,7 +98,7 @@ public:
   }
 
   static
-  void initialize_tls_worker(std::size_t id) {
+  void initialize_worker(std::size_t id) {
     nk_heartbeat_set_unique_id((unsigned)id);
   }
   

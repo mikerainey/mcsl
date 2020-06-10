@@ -426,6 +426,7 @@ void launch0(const Bench_pre& bench_pre,
 	     fiber<Scheduler>* f_body) {
   using scheduler_type = chase_lev_work_stealing_scheduler<Scheduler, fiber, Stats, Logging, fjnative_elastic>;
   std::size_t nb_workers = deepsea::cmdline::parse_or_default_int("proc", 1);
+  perworker::unique_id::initialize(nb_workers);
   std::size_t nb_steal_attempts = 1;
   {
     deepsea::cmdline::dispatcher d;

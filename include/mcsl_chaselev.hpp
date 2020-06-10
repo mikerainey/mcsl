@@ -405,7 +405,7 @@ public:
 
   template <template <typename> typename Fiber>
   static
-  void commit() {
+  void commit(Fiber<minimal_scheduler>*) {
     mcsl::commit<minimal_scheduler, Fiber, Stats, Logging, Elastic, Worker, Interrupt>();
   }
 

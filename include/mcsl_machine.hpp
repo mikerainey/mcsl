@@ -4,7 +4,7 @@
 #include <vector>
 #include <assert.h>
 
-#ifdef MCSL_TARGET_MAC_OS
+#ifdef MCSL_MAC_OS
 #include <sys/param.h>
 #include <sys/sysctl.h>
 #endif
@@ -177,7 +177,7 @@ void destroy_hwloc(std::size_t nb_workers) {
 double load_cpu_frequency_ghz() {
   double cpu_frequency_ghz = 0.0;
   float cpu_frequency_mhz = 0.0;
-#ifdef MCSL_TARGET_LINUX
+#ifdef MCSL_LINUX
   /* Get information from /proc/cpuinfo.     *
    * cpu MHz         : <float>             # cpu frequency in MHz
    */
@@ -191,7 +191,7 @@ double load_cpu_frequency_ghz() {
     fclose (cpuinfo_file);
   }
 #endif
-#ifdef MCSL_TARGET_MAC_OS
+#ifdef MCSL_MAC_OS
   uint64_t freq = 0;
   size_t size;
   size = sizeof(freq);

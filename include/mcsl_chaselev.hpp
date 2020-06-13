@@ -297,7 +297,7 @@ public:
     Interrupt::initialize_signal_handler();
     termination_barrier.set_active(true);
     for (std::size_t i = 1; i < nb_workers; i++) {
-      Worker::launch_worker_thread(i, [i, &worker_loop, &termination_barrier] {
+      Worker::launch_worker_thread(i, [&] (std::size_t i) {
         termination_barrier.set_active(true);
         worker_loop(i);
       });

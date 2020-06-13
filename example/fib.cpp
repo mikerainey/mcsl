@@ -78,6 +78,7 @@ int main(int argc, char** argv) {
   d.add("manual", [&] {
     using my_scheduler = mcsl::minimal_scheduler<>;
     auto nb_workers = deepsea::cmdline::parse_or_default_int("proc", 1);
+    mcsl::perworker::unique_id::initialize(nb_workers);
     auto f_body = new fib_fiber<my_scheduler>(n, &dst);
     auto f_term = new mcsl::terminal_fiber<my_scheduler>;
     mcsl::fiber<my_scheduler>::add_edge(f_body, f_term);

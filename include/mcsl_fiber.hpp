@@ -23,7 +23,8 @@ private:
 
 public:
 
-  fiber() : incounter(1), outedge(nullptr) { }
+  fiber()
+    : incounter(1), outedge(nullptr) { }
 
   ~fiber() {
     assert(outedge == nullptr);

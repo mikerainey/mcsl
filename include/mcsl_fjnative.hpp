@@ -143,7 +143,7 @@ public:
   ringbuffer<char*, 32> buf;
 
   stack_allocator() {
-    buf.push_back((char*)malloc(thread_stack_szb));
+    //    buf.push_back((char*)malloc(thread_stack_szb));
   }
 
   ~stack_allocator() {
@@ -152,7 +152,8 @@ public:
     }
   }
   
-  char* alloc() {
+  char* alloc() { // for now, just use system malloc/free, because it's faster
+    return (char*)malloc(thread_stack_szb);
     char* p = nullptr;
     if (! buf.empty()) {
       p = buf.pop_back();
@@ -163,6 +164,7 @@ public:
   }
 
   void dealloc(char* p) {
+    free(p); return;
     if (! buf.full()) {
       buf.push_back(p);
     } else {

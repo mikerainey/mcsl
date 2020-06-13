@@ -60,7 +60,7 @@ class chase_lev_deque {
 public:
   
   chase_lev_deque()
-    : array(new circular_array(1024)), top(0), bottom(0) {}
+    : array(new circular_array(64)), top(0), bottom(0) {}
   
   ~chase_lev_deque() {
     circular_array* p = array.load(std::memory_order_relaxed);

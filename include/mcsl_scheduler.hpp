@@ -242,7 +242,7 @@ using fiber_status_type = enum fiber_status_enum {
   fiber_status_continue,
   fiber_status_pause,
   fiber_status_finish,
-  fiber_status_terminate
+  fiber_status_exit_launch
 };
 
 template <typename Scheduler>
@@ -251,7 +251,7 @@ public:
 
   virtual
   fiber_status_type exec() {
-    return fiber_status_terminate;
+    return fiber_status_exit_launch;
   }
 
   virtual

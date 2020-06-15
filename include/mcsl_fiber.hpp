@@ -94,7 +94,7 @@ public:
   terminal_fiber() : fiber<Scheduler>() { }
   
   fiber_status_type run() {
-    return fiber_status_terminate;
+    return fiber_status_exit_launch;
   }
   
 };

@@ -276,7 +276,7 @@ public:
             } else if (s == fiber_status_finish) {
               current->finish();
             } else {
-              assert(s == fiber_status_terminate);
+              assert(s == fiber_status_exit_launch);
               current->finish();
               status = scheduler_status_finish;
               Logging::log_event(initiate_teardown);

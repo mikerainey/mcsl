@@ -27,12 +27,14 @@ private:
   
   static
   double launch_duration;
-  
-  static
-  perworker::array<double> all_total_idle_time;
+
+  using private_timers = struct private_timers_struct {
+    clock::time_point_type start_idle;
+    double total_idle_time;
+  };
 
   static
-  perworker::array<double> all_total_sleep_time;
+  perworker::array<private_timers> all_timers;
   
 public:
 
@@ -45,59 +47,34 @@ public:
   }
 
   static
-  void on_enter_launch() {
-    enter_launch_time = clock::now();
-  }
-  
-  static
-  void on_exit_launch() {
-    launch_duration = clock::since(enter_launch_time);
-  }
-
-  static
-  clock::time_point_type on_enter_acquire() {
-    if (! Configuration::enabled) {
-      return clock::time_point_type();
-    }
-    return clock::now();
-  }
-  
-  static
-  void on_exit_acquire(clock::time_point_type enter_acquire_time) {
+  void on_enter_acquire() {
     if (! Configuration::enabled) {
       return;
     }
-    all_total_idle_time.mine() += clock::since(enter_acquire_time);
-  }
-
-  static
-  clock::time_point_type on_enter_sleep() {
-    if (! Configuration::enabled) {
-      return clock::time_point_type();
-    }
-    return clock::now();
+    all_timers.mine().start_idle = clock::now();
   }
   
   static
-  void on_exit_sleep(clock::time_point_type enter_sleep_time) {
+  void on_exit_acquire() {
     if (! Configuration::enabled) {
       return;
     }
-    all_total_sleep_time.mine() += clock::since(enter_sleep_time);
+    auto& t = all_timers.mine();
+    t.total_idle_time += clock::since(t.start_idle);
   }
 
   static
   void start_collecting() {
+    enter_launch_time = clock::now();
     for (int i = 0; i < all_counters.size(); i++) {
       for (int j = 0; j < Configuration::nb_counters; j++) {
         all_counters[i].counters[j] = 0;
       }
     }
-    for (int i = 0; i < all_total_idle_time.size(); i++) {
-      all_total_idle_time[i] = 0.0;
-    }
-    for (int i = 0; i < all_total_sleep_time.size(); i++) {
-      all_total_sleep_time[i] = 0.0;
+    for (int i = 0; i < all_timers.size(); i++) {
+      auto& t = all_timers[i];
+      t.start_idle = clock::now();
+      t.total_idle_time = 0.0;
     }
   }
 
@@ -106,6 +83,7 @@ public:
     if (! Configuration::enabled) {
       return;
     }
+    launch_duration = clock::since(enter_launch_time);
     for (int counter_id = 0; counter_id < Configuration::nb_counters; counter_id++) {
       long counter_value = 0;
       for (std::size_t i = 0; i < nb_workers; ++i) {
@@ -118,17 +96,16 @@ public:
     double cumulated_time = launch_duration * nb_workers;
     double total_idle_time = 0.0;
     for (std::size_t i = 0; i < nb_workers; ++i) {
-      total_idle_time += all_total_idle_time[i];
+      auto& t = all_timers[i];
+      if (i != 0) {
+        t.total_idle_time += clock::since(t.start_idle);
+      }
+      total_idle_time += t.total_idle_time;
     }
     double relative_idle = total_idle_time / cumulated_time;
     double utilization = 1.0 - relative_idle;
     aprintf("total_idle_time %f\n", total_idle_time);
     aprintf("utilization %f\n", utilization);
-    double total_sleep_time = 0.0;
-    for (std::size_t i = 0; i < nb_workers; ++i) {
-      total_sleep_time += all_total_sleep_time[i];
-    }
-    aprintf("total_sleep_time %f\n", total_sleep_time);
   }
 
 };
@@ -143,9 +120,6 @@ template <typename Configuration>
 double stats_base<Configuration>::launch_duration;
 
 template <typename Configuration>
-perworker::array<double> stats_base<Configuration>::all_total_idle_time;
-
-template <typename Configuration>
-perworker::array<double> stats_base<Configuration>::all_total_sleep_time;
+perworker::array<typename stats_base<Configuration>::private_timers> stats_base<Configuration>::all_timers;
 
 } // end namespace

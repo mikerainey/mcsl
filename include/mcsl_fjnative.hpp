@@ -448,16 +448,17 @@ void launch0(const Bench_pre& bench_pre,
   struct rusage ru_before, ru_after;
   double elapsed;
   Logging::initialize();
-  Stats::start_collecting();
   fjnative_of_function fj_init([&] { started = true; });
   fjnative_of_function fj_bench_pre(bench_pre);
   fjnative_of_function fj_before_bench([&] {
     Logging::log_event(enter_algo); // to log that the benchmark f_body is to be scheduled next
     getrusage(RUSAGE_SELF, &ru_before);
+    Stats::start_collecting();
     start_time = clock::now();
   });
   fjnative_of_function fj_after_bench([&] {
     elapsed = clock::since(start_time);
+    Stats::report(nb_workers);
     getrusage(RUSAGE_SELF, &ru_after);
     Logging::log_event(exit_algo); // to log that the benchmark f_body has completed
   });
@@ -483,9 +484,7 @@ void launch0(const Bench_pre& bench_pre,
     f_bench_post->release();
     f_term->release();
   }
-  Stats::on_enter_launch();
   scheduler_type::launch(nb_workers, nb_steal_attempts);
-  Stats::on_exit_launch();
   aprintf("exectime %.3f\n", elapsed);
   {
     auto double_of_tv = [] (struct timeval tv) {
@@ -498,7 +497,6 @@ void launch0(const Bench_pre& bench_pre,
             double_of_tv(ru_after.ru_stime) -
             double_of_tv(ru_before.ru_stime));
   }
-  Stats::report(nb_workers);
   Logging::output(nb_workers);
 }
 

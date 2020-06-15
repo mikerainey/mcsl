@@ -436,12 +436,14 @@ void launch0(const Bench_pre& bench_pre,
     d.add("coupon", [&] { nb_steal_attempts = nb_workers * 100; });
     d.dispatch_or_default("steal_policy", "once");
   }
+#ifndef MCSL_DISABLE_ELASTIC
   {
     deepsea::cmdline::dispatcher d;
     d.add("default", [] { scheduler_type::elastic_type::policy = elastic_policy_enabled; });
     d.add("disabled", [&] { scheduler_type::elastic_type::policy = elastic_policy_disabled; });
     d.dispatch_or_default("elastic_policy", "default");
   }
+#endif
   clock::time_point_type start_time;
   struct rusage ru_before, ru_after;
   double elapsed;

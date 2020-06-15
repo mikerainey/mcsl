@@ -290,6 +290,7 @@ public:
       Interrupt::wait_to_terminate_ping_thread();
       worker_exit_barrier.wait(my_id);
     };
+    
     for (std::size_t i = 0; i < rngs.size(); ++i) {
       rngs[i] = hash(i + 31);
     }

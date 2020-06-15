@@ -21,6 +21,10 @@ private:
   alignas(MCSL_CACHE_LINE_SZB)
   fiber* outedge;
 
+  void schedule() {
+    Scheduler::schedule(this);
+  }
+
 public:
 
   fiber()
@@ -44,7 +48,7 @@ public:
 
   void release() {
     if (--incounter == 0) {
-      Scheduler::schedule(this);
+      schedule();
     }
   }
 

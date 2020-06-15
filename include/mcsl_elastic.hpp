@@ -190,7 +190,9 @@ public:
         // Wait on my own semaphore
         Stats::increment(Stats::configuration_type::nb_sleeps);
         Logging::log_enter_sleep(target, target_status.bits.priority, my_status.bits.priority);
+        Stats::on_exit_acquire();
         fields[my_id].sem.wait();
+        Stats::on_enter_acquire();
         // Must not set busybit here, because it will go back to stealing
         Logging::log_event(exit_sleep);
         // TODO: Add support for CRS

@@ -262,6 +262,7 @@ public:
       auto &my_deque = deques.mine();
       scheduler_status_type status = scheduler_status_active;
       fiber_type *current = nullptr;
+      Stats::on_enter_work();
       while (status == scheduler_status_active) {
         current = flush();
         while ((current != nullptr) || !my_deque.empty()) {
@@ -285,8 +286,11 @@ public:
           }
         }
         assert((current == nullptr) && my_deque.empty());
+        Stats::on_exit_work();
         status = acquire();
+        Stats::on_enter_work();
       }
+      Stats::on_exit_work();
       Interrupt::wait_to_terminate_ping_thread();
       worker_exit_barrier.wait(my_id);
     };

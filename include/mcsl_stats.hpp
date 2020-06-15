@@ -29,6 +29,8 @@ private:
   double launch_duration;
 
   using private_timers = struct private_timers_struct {
+    clock::time_point_type start_work;
+    double total_work_time;
     clock::time_point_type start_idle;
     double total_idle_time;
   };
@@ -64,6 +66,23 @@ public:
   }
 
   static
+  void on_enter_work() {
+    if (! Configuration::enabled) {
+      return;
+    }
+    all_timers.mine().start_work = clock::now();
+  }
+  
+  static
+  void on_exit_work() {
+    if (! Configuration::enabled) {
+      return;
+    }
+    auto& t = all_timers.mine();
+    t.total_work_time += clock::since(t.start_work);
+  }
+
+  static
   void start_collecting() {
     enter_launch_time = clock::now();
     for (int i = 0; i < all_counters.size(); i++) {
@@ -73,6 +92,8 @@ public:
     }
     for (int i = 0; i < all_timers.size(); i++) {
       auto& t = all_timers[i];
+      t.start_work = clock::now();
+      t.total_work_time = 0.0;
       t.start_idle = clock::now();
       t.total_idle_time = 0.0;
     }
@@ -94,9 +115,12 @@ public:
     }
     aprintf("launch_duration %f\n", launch_duration);
     double cumulated_time = launch_duration * nb_workers;
+    double total_work_time = 0.0;
     double total_idle_time = 0.0;
     for (std::size_t i = 0; i < nb_workers; ++i) {
       auto& t = all_timers[i];
+      t.total_work_time += clock::since(t.start_work);
+      total_work_time += t.total_work_time;
       if (i != 0) {
         t.total_idle_time += clock::since(t.start_idle);
       }
@@ -104,6 +128,7 @@ public:
     }
     double relative_idle = total_idle_time / cumulated_time;
     double utilization = 1.0 - relative_idle;
+    aprintf("total_work_time %f\n", total_work_time);
     aprintf("total_idle_time %f\n", total_idle_time);
     aprintf("utilization %f\n", utilization);
   }

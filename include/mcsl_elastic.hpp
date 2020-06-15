@@ -81,18 +81,18 @@ public:
 
   atomic_status_word() : status_word(UINT64_C(0)) {}
 
-  atomic_status_word(uint64_t prio, uint8_t nullaryHead) {
-    clear(prio, nullaryHead);
+  atomic_status_word(uint64_t prio, uint8_t nullary_head) {
+    clear(prio, nullary_head);
   }
 
   // 1) Unsets the busy bit
   // 2) Hashes and obtain a new priority
   // 3) Resets the head value
-  void clear(uint64_t prio, uint8_t nullaryHead, bool isBusy=false) {
+  void clear(uint64_t prio, uint8_t nullary_head, bool is_busy=false) {
     status_word_union word = {UINT64_C(0)};
-    word.bits.busybit  = isBusy;   // Not busy
+    word.bits.busybit  = is_busy;   // Not busy
     word.bits.priority = prio; 
-    word.bits.head     = nullaryHead;
+    word.bits.head     = nullary_head;
     status_word.store(word.as_uint64);
   }
 

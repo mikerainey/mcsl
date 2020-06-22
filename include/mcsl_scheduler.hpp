@@ -209,9 +209,8 @@ public:
       perworker::unique_id::initialize_worker(id);
       b(id);
     };
-    nk_worker_activation_type p = new nk_worker_activation_type(id, f);
-    nk_thread_start(nk_thread_init_fn, (void*)p,0,0,TSTACK_DEFAULT,0,-1);
-
+    auto p = new nk_worker_activation_type(id, f);
+    nk_thread_start(nk_thread_init_fn, (void*)p, 0, 0, TSTACK_DEFAULT, 0, -1);
   }
 
   class worker_exit_barrier {

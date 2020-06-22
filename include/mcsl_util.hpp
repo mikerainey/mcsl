@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <atomic>
 #include <stdarg.h>
+#include <assert.h>
+#include <time.h>
 
 #if defined(MCSL_LINUX)
 #include <pthread.h>
@@ -14,6 +16,7 @@ extern "C"
 void** nk_get_tid();
 typedef long time_t;
 typedef int clockid_t;
+#define CLOCK_MONOTONIC                 1
 extern "C"
 int clock_gettime(clockid_t, struct timespec*);
 namespace nautilus {
@@ -229,37 +232,16 @@ void release_print_lock() {
   nautilus::spin_unlock(&print_lock);
 }
 
-void die(const char *fmt, ...) {
-  va_list	ap;
-  va_start (ap, fmt);
-  acquire_print_lock(); {
-    printk(fmt, ap);
-  }
-  release_print_lock();
-  va_end(ap);
+#define die(f_, ...) \
+  acquire_print_lock();  \
+  printk((f_), ##__VA_ARGS__); \
+  release_print_lock();  \
   assert(false);
-}
 
-void afprintf(FILE* stream, const char *fmt, ...) {
-  die("afprintf: todo\n");
-  va_list	ap;
-  va_start (ap, fmt);
-  acquire_print_lock(); {
-    // later: output to file
-  }
+#define aprintf(f_, ...) \
+  acquire_print_lock(); \
+  printk((f_), ##__VA_ARGS__); \
   release_print_lock();
-  va_end(ap);
-}
-
-void aprintf(const char *fmt, ...) {
-  va_list	ap;
-  va_start (ap, fmt);
-  acquire_print_lock(); {
-    printk(fmt, ap);
-  }
-  release_print_lock();
-  va_end(ap);
-}
   
 #endif
 

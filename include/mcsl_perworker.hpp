@@ -6,11 +6,11 @@
 
 #if defined(MCSL_NAUTILUS)
 extern "C"
-void nk_heartbeat_init_unique_id();
+void nk_mcsl_init_unique_id();
 extern "C"
-void nk_heartbeat_set_unique_id(unsigned id);
+void nk_mcsl_set_unique_id(unsigned id);
 extern "C"
-unsigned nk_heartbeat_read_unique_id();
+unsigned nk_mcsl_read_unique_id();
 #endif
 
 #ifndef MCSL_MAX_NB_WORKERS_LG
@@ -94,17 +94,18 @@ public:
   static
   void initialize(std::size_t _nb_workers) {
     nb_workers = _nb_workers;
-    nk_heartbeat_init_unique_id();
+    nk_mcsl_init_unique_id();
+    initialize_worker(0);
   }
 
   static
   void initialize_worker(std::size_t id) {
-    nk_heartbeat_set_unique_id((unsigned)id);
+    nk_mcsl_set_unique_id((unsigned)id);
   }
   
   static
   std::size_t get_my_id() {
-    return nk_heartbeat_read_unique_id();
+    return nk_mcsl_read_unique_id();
   }
 
   static

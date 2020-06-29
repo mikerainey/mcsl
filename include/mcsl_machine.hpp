@@ -20,6 +20,11 @@ namespace mcsl {
 
 /*---------------------------------------------------------------------*/
 /* Policies for binding workers to hardware resources */
+
+using pinning_policy_type = enum pinning_policy_enum {
+  pinning_policy_enabled,
+  pinning_policy_disabled
+};
   
 using resource_packing_type = enum resource_packing_enum {
   resource_packing_sparse,
@@ -31,6 +36,8 @@ using resource_binding_type = enum resource_binding_enum {
   resource_binding_by_core,
   resource_binding_by_numa_node
 };
+
+pinning_policy_type pinning_policy = pinning_policy_disabled;  
   
 template <typename Resource_id>
 std::vector<Resource_id> assign_workers_to_resources(resource_packing_type packing,
@@ -73,14 +80,17 @@ hwloc_topology_t topology;
 hwloc_cpuset_t all_cpus;
 
 void hwloc_assign_cpusets(std::size_t nb_workers,
+                          pinning_policy_type _pinning_policy,
                           resource_packing_type resource_packing,
                           resource_binding_type resource_binding) {
+  pinning_policy = _pinning_policy;
   all_cpus = hwloc_bitmap_dup(hwloc_topology_get_topology_cpuset(topology));
   std::vector<std::size_t> max_nb_workers_by_resource;
   std::vector<hwloc_coordinate_type> resource_ids;
   if (resource_binding == resource_binding_by_core) {
     auto core_depth = hwloc_get_type_or_below_depth(topology, HWLOC_OBJ_CORE);
     std::size_t nb_cores = hwloc_get_nbobjs_by_depth(topology, core_depth);
+    assert(nb_workers <= nb_cores);
     max_nb_workers_by_resource.resize(nb_cores);
     resource_ids.resize(nb_cores, empty_coordinate);
     for (int core_id = 0; core_id < nb_cores; core_id++) {
@@ -115,6 +125,9 @@ void hwloc_assign_cpusets(std::size_t nb_workers,
 }
 
 void hwloc_pin_calling_worker() {
+  if (pinning_policy == pinning_policy_disabled) {
+    return;
+  }
   auto& cpuset = hwloc_cpusets.mine();
   int flags = HWLOC_CPUBIND_STRICT | HWLOC_CPUBIND_THREAD;
   if (hwloc_set_cpubind(topology, cpuset, flags)) {
@@ -129,10 +142,11 @@ void hwloc_pin_calling_worker() {
 #endif
 
 void assign_cpusets(std::size_t nb_workers,
+                    pinning_policy_type _pinning_policy,
                     resource_packing_type resource_packing,
                     resource_binding_type resource_binding) {
 #ifdef MCSL_HAVE_HWLOC
-  hwloc_assign_cpusets(nb_workers, resource_packing, resource_binding);
+  hwloc_assign_cpusets(nb_workers, _pinning_policy, resource_packing, resource_binding);
 #endif
 }
 
@@ -207,4 +221,60 @@ double load_cpu_frequency_ghz() {
   return cpu_frequency_ghz;
 }
 
+/*---------------------------------------------------------------------*/
+/* Setup and teardown */
+
+std::size_t nb_workers = 0;
+
+void initialize_machine() {
+#if defined(MCSL_LINUX)
+  init_print_lock();
+  nb_workers = deepsea::cmdline::parse_or_default_int("proc", 1);
+  if (nb_workers > perworker::default_max_nb_workers) {
+    die("Requested too many worker threads: %lld, should be maximum %lld\n",
+        nb_workers, perworker::default_max_nb_workers);
+  }
+  perworker::unique_id::initialize(nb_workers);
+  // just hint to the OS that we'll be using this many threads
+  pthread_setconcurrency((int)nb_workers);
+  { // assign the NUMA-allocation policy
+    bool numa_alloc_interleaved = deepsea::cmdline::parse_or_default_bool("numa_round_robin", nb_workers != 1);
+    mcsl::initialize_hwloc(nb_workers, numa_alloc_interleaved);
+  }
+  { // assign the CPU-pinning policy
+    pinning_policy_type pinning_policy =
+      deepsea::cmdline::parse_or_default_bool("pinning_enabled", false) ? pinning_policy_enabled : pinning_policy_disabled;
+    resource_packing_type resource_packing = resource_packing_sparse;
+    { // resource packing
+      std::string s = deepsea::cmdline::parse_or_default_string("resource_packing", "sparse");
+      if (s == "sparse") {
+        resource_packing = resource_packing_sparse;
+      } else if (s == "dense") {
+        resource_packing = resource_packing_dense;
+      } else {
+        die("bogus resource packing\n");
+      }
+    }
+    resource_binding_type resource_binding = resource_binding_all;
+    { // resource binding
+      std::string s = deepsea::cmdline::parse_or_default_string("resource_binding", "all");
+      if (s == "all") {
+        resource_binding = resource_binding_all;
+      } else if (s == "by_core") {
+        resource_binding = resource_binding_by_core;
+      } else if (s == "by_numa_node") {
+        resource_binding = resource_binding_by_numa_node;
+      } else {
+        die("bogus resource binding\n");
+      }
+    }
+    assign_cpusets(nb_workers, pinning_policy, resource_packing, resource_binding);
+  }
+#endif
+}
+
+void teardown_machine() {
+  destroy_hwloc(nb_workers);
+}
+  
 } // end namespace

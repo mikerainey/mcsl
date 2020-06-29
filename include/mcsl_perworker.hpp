@@ -52,6 +52,8 @@ public:
 
   static
   void initialize(std::size_t _nb_workers) {
+    assert(_nb_workers != 0);
+    assert(_nb_workers <= default_max_nb_workers);
     initialize_worker(0);
     nb_workers = _nb_workers;
   }

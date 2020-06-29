@@ -11,6 +11,7 @@
 #include "mcsl_stats.hpp"
 #include "mcsl_logging.hpp"
 #include "mcsl_elastic.hpp"
+#include "mcsl_machine.hpp"
 
 /*---------------------------------------------------------------------*/
 /* Stats */
@@ -69,12 +70,35 @@ using fjnative_elastic = elastic<Stats, Logging, spinning_binary_semaphore>;
 #else
 template <typename Stats, typename Logging>
 using fjnative_elastic = elastic<Stats, Logging>;
-#endif  
+#endif
+
+/*---------------------------------------------------------------------*/
+/* Worker-thread configuration */
+  
+class fjnative_worker {
+public:
+
+  static
+  void initialize_worker() {
+    pin_calling_worker();
+  }
+
+  template <typename Body>
+  static
+  void launch_worker_thread(std::size_t id, const Body& b) {
+    mcsl::minimal_worker::launch_worker_thread(id, b);
+  }
+
+  using worker_exit_barrier = typename minimal_worker::worker_exit_barrier;
+  
+  using termination_detection_type = minimal_termination_detection;
+  
+};
 
 /*---------------------------------------------------------------------*/
 /* Scheduler configuration */
 
-using fjnative_scheduler = minimal_scheduler<fjnative_stats, fjnative_logging, fjnative_elastic>;
+using fjnative_scheduler = minimal_scheduler<fjnative_stats, fjnative_logging, fjnative_elastic, fjnative_worker>;
 
 } // end namespace
 
@@ -382,15 +406,18 @@ void fork2(const F1& f1, const F2& f2) {
 /* Scheduler launch */
   
 bool started = false;
+
+__attribute__((constructor))
+void _initialize() {
+  initialize_machine();
+}
   
 template <typename Scheduler, typename Stats, typename Logging,
           typename Bench_pre, typename Bench_post>
 void launch0(const Bench_pre& bench_pre,
 	     const Bench_post& bench_post,
 	     fiber<Scheduler>* f_body) {
-  using scheduler_type = chase_lev_work_stealing_scheduler<Scheduler, fiber, Stats, Logging, fjnative_elastic>;
-  std::size_t nb_workers = deepsea::cmdline::parse_or_default_int("proc", 1);
-  perworker::unique_id::initialize(nb_workers);
+  using scheduler_type = chase_lev_work_stealing_scheduler<Scheduler, fiber, Stats, Logging, fjnative_elastic, fjnative_worker>;
   std::size_t nb_steal_attempts = 1;
   {
     deepsea::cmdline::dispatcher d;
@@ -460,7 +487,8 @@ void launch(const Bench_pre& bench_pre,
             const Bench_body& bench_body) {
   fjnative_of_function fj_body(bench_body);
   auto f_body = &fj_body;
-  launch0<fjnative_scheduler, fjnative_stats, fjnative_logging, Bench_pre, Bench_post>(bench_pre, bench_post, f_body);  
+  launch0<fjnative_scheduler, fjnative_stats, fjnative_logging, Bench_pre, Bench_post>(bench_pre, bench_post, f_body);
+  teardown_machine();
 }
 
 } // end namespace

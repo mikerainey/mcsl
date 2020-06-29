@@ -120,24 +120,15 @@ public:
 /*---------------------------------------------------------------------*/
 /* Elastic work stealing */
 
-using elastic_policy_type = enum elastic_enum { elastic_policy_enabled, elastic_policy_disabled };
-
-template <typename Stats, typename Logging>
+template <typename Stats, typename Logging, typename Semaphore=semaphore>
 class elastic {
 public:
-
-  static
-  elastic_policy_type policy;
 
   // Grouping fields for elastic scheduling together for potentiallly
   // better cache behavior and easier initialization.
   using elastic_fields_type = struct elastic_fields_struct {
     atomic_status_word status;
-#ifdef MCSL_USE_SPINNING_SEMAPHORE
-    spinning_binary_semaphore sem;     
-#else
-    semaphore sem;
-#endif
+    Semaphore sem;
     size_t next;    // Next pointer for the wake-up list
     hash_value_type rng;
   };
@@ -148,9 +139,6 @@ public:
   // Busybit is set separately, this function only traverses and wakes people up
   static
   void wake_children() {
-    if (policy == elastic_policy_disabled) {
-      return;
-    }
     auto my_id = perworker::unique_id::get_my_id();
     fields[my_id].status.set_busy_bit();
     auto status = fields[my_id].status.load();
@@ -170,9 +158,6 @@ public:
 
   static
   void try_to_sleep(std::size_t target) {
-    if (policy == elastic_policy_disabled) {
-      return;
-    }
     // For whatever reason we failed to steal from our victim
     // It is possible that we are in this branch because the steal failed
     // due to contention instead of empty queue. However we are still safe 
@@ -204,9 +189,6 @@ public:
 
   static
   void accept_lifelines() {
-    if (policy == elastic_policy_disabled) {
-      return;
-    }
     // 1) Clear the children list 
     // 2) Start to accept lifelines by unsetting busy bit
     // 3) Randomly choose a new priority
@@ -230,10 +212,7 @@ public:
   
 };
 
-template <typename Stats, typename Logging>
-perworker::array<typename elastic<Stats,Logging>::elastic_fields_type> elastic<Stats,Logging>::fields;
-
-template <typename Stats, typename Logging>
-elastic_policy_type elastic<Stats,Logging>::policy = elastic_policy_enabled;
+template <typename Stats, typename Logging, typename Semaphore>
+perworker::array<typename elastic<Stats,Logging,Semaphore>::elastic_fields_type> elastic<Stats,Logging,Semaphore>::fields;
 
 } // end namespace

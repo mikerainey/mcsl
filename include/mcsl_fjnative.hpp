@@ -60,9 +60,12 @@ using fjnative_logging = logging_base<false>;
 /*---------------------------------------------------------------------*/
 /* Elastic work stealing */
 
-#ifdef MCSL_DISABLE_ELASTIC
+#if defined(MCSL_DISABLE_ELASTIC)
 template <typename Stats, typename Logging>
 using fjnative_elastic = minimal_elastic<Stats, Logging>;
+#elif defined(MCSL_ELASTIC_SPINSLEEP)
+template <typename Stats, typename Logging>
+using fjnative_elastic = elastic<Stats, Logging, spinning_binary_semaphore>;
 #else
 template <typename Stats, typename Logging>
 using fjnative_elastic = elastic<Stats, Logging>;
@@ -415,7 +418,6 @@ void fork2(const F1& f1, const F2& f2) {
 #endif
 }
 
-
 /*---------------------------------------------------------------------*/
 /* Scheduler launch */
   
@@ -436,14 +438,6 @@ void launch0(const Bench_pre& bench_pre,
     d.add("coupon", [&] { nb_steal_attempts = nb_workers * 100; });
     d.dispatch_or_default("steal_policy", "once");
   }
-#ifndef MCSL_DISABLE_ELASTIC
-  {
-    deepsea::cmdline::dispatcher d;
-    d.add("default", [] { scheduler_type::elastic_type::policy = elastic_policy_enabled; });
-    d.add("disabled", [&] { scheduler_type::elastic_type::policy = elastic_policy_disabled; });
-    d.dispatch_or_default("elastic_policy", "default");
-  }
-#endif
   clock::time_point_type start_time;
   struct rusage ru_before, ru_after;
   double elapsed;
@@ -506,7 +500,7 @@ void launch(const Bench_pre& bench_pre,
             const Bench_body& bench_body) {
   fjnative_of_function fj_body(bench_body);
   auto f_body = &fj_body;
-  launch0<fjnative_scheduler, fjnative_stats, fjnative_logging, Bench_pre, Bench_post>(bench_pre, bench_post, f_body);
+  launch0<fjnative_scheduler, fjnative_stats, fjnative_logging, Bench_pre, Bench_post>(bench_pre, bench_post, f_body);  
 }
 
 } // end namespace

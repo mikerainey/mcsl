@@ -423,7 +423,7 @@ void launch0(const Bench_pre& bench_pre,
     deepsea::cmdline::dispatcher d;
     d.add("once", [&] { nb_steal_attempts = 1; });
     d.add("coupon", [&] { nb_steal_attempts = nb_workers * 100; });
-    d.dispatch_or_default("steal_policy", "once");
+    d.dispatch_or_default("steal_policy", "coupon");
   }
   clock::time_point_type start_time;
   struct rusage ru_before, ru_after;

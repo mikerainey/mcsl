@@ -10,6 +10,7 @@
 #include <pthread.h>
 #include <chrono>
 #elif defined(MCSL_NAUTILUS)
+#include <math.h>
 extern "C"
 int printk(const char* fmt, ...);
 extern "C"
@@ -121,8 +122,8 @@ using time_point_type = struct timespec;
   
 static inline
 double diff(time_point_type start, time_point_type finish) {
-  long seconds = finish.tv_sec - start.tv_sec; 
-  long ns = finish.tv_nsec - start.tv_nsec; 
+  uint64_t seconds = finish.tv_sec - start.tv_sec; 
+  uint64_t ns = finish.tv_nsec - start.tv_nsec; 
   if (start.tv_nsec > finish.tv_nsec) { // clock underflow 
     --seconds; 
     ns += 1000000000; 
@@ -219,15 +220,18 @@ void aprintf(const char *fmt, ...) {
 #elif defined(MCSL_NAUTILUS)
 
 nautilus::spinlock_t print_lock;
-  
+
+static inline  
 void init_print_lock() {
   nautilus::spinlock_init(&print_lock);
 }
 
+static inline  
 void acquire_print_lock() {
   nautilus::spin_lock(&print_lock);
 }
 
+static inline
 void release_print_lock() {
   nautilus::spin_unlock(&print_lock);
 }
@@ -242,7 +246,7 @@ void release_print_lock() {
   acquire_print_lock(); \
   printk((f_), ##__VA_ARGS__); \
   release_print_lock();
-  
+
 #endif
 
 } // end namespace

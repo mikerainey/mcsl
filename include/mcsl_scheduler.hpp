@@ -4,6 +4,7 @@
 #include <thread>
 #include <condition_variable>
 #elif defined(MCSL_NAUTILUS)
+#include <functional>
 typedef uint64_t nk_stack_size_t;
 typedef void* nk_thread_id_t;
 typedef void (*nk_thread_fun_t)(void * input, void ** output);

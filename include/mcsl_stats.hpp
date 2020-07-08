@@ -117,11 +117,14 @@ public:
     double cumulated_time = launch_duration * nb_workers;
     double total_work_time = 0.0;
     double total_idle_time = 0.0;
+    auto my_id = perworker::unique_id::get_my_id();
     for (std::size_t i = 0; i < nb_workers; ++i) {
       auto& t = all_timers[i];
-      t.total_work_time += clock::since(t.start_work);
+      if (i == my_id) {
+        t.total_work_time += clock::since(t.start_work);
+      }
       total_work_time += t.total_work_time;
-      if (i != 0) {
+      if (i != my_id) {
         t.total_idle_time += clock::since(t.start_idle);
       }
       total_idle_time += t.total_idle_time;

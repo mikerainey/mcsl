@@ -113,7 +113,7 @@ public:
       const char* counter_name = Configuration::name_of_counter((counter_id_type)counter_id);
       aprintf("%s %ld\n", counter_name, counter_value);
     }
-    aprintf("launch_duration %f\n", launch_duration);
+    aprintf("launch_duration %.3f\n", launch_duration);
     double cumulated_time = launch_duration * nb_workers;
     double total_work_time = 0.0;
     double total_idle_time = 0.0;
@@ -131,9 +131,9 @@ public:
     }
     double relative_idle = total_idle_time / cumulated_time;
     double utilization = 1.0 - relative_idle;
-    aprintf("total_work_time %f\n", total_work_time);
-    aprintf("total_idle_time %f\n", total_idle_time);
-    aprintf("utilization %f\n", utilization);
+    aprintf("total_work_time %.3f\n", total_work_time);
+    aprintf("total_idle_time %.3f\n", total_idle_time);
+    aprintf("utilization %.3f\n", utilization);
   }
 
 };

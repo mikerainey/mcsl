@@ -4,13 +4,13 @@
 #include <vector>
 #include <assert.h>
 
-#ifdef MCSL_MAC_OS
-#include <sys/param.h>
-#include <sys/sysctl.h>
-#endif
-
 #ifdef MCSL_HAVE_HWLOC
 #include <hwloc.h>
+#endif
+
+#ifdef MCSL_NAUTILUS
+extern "C"
+ulong_t nk_detect_cpu_freq(uint32_t);
 #endif
 
 #include "mcsl_perworker.hpp"
@@ -187,38 +187,30 @@ void destroy_hwloc(std::size_t nb_workers) {
   
 /*---------------------------------------------------------------------*/
 /* Loader for CPU frequency */
+
+uint64_t load_cpu_frequency_khz() {
+  uint64_t cpu_frequency_khz = 0;
+#if defined(MCSL_LINUX)
+  FILE *f;
+  f = fopen("/sys/devices/system/cpu/cpu0/cpufreq/base_frequency", "r");
+  if (f == nullptr) {
+    f = fopen("/sys/devices/system/cpu/cpu0/cpufreq/bios_limit", "r");
+  }
+  if (f != nullptr) {
+    char buf[1024];
+    while (fgets(buf, sizeof(buf), f) != 0) {
+      sscanf(buf, "%lu", &(cpu_frequency_khz));
+    }
+    fclose(f);
+  }
+#elif defined(MCSL_NAUTILUS)
+  cpu_frequency_khz = nk_detect_cpu_freq(0);
+#endif
+  return cpu_frequency_khz;
+}
   
 double load_cpu_frequency_ghz() {
-  double cpu_frequency_ghz = 0.0;
-  float cpu_frequency_mhz = 0.0;
-#ifdef MCSL_LINUX
-  /* Get information from /proc/cpuinfo.     *
-   * cpu MHz         : <float>             # cpu frequency in MHz
-   */
-  FILE *cpuinfo_file = fopen("/proc/cpuinfo", "r");
-  char buf[1024];
-  int cache_line_szb;
-  if (cpuinfo_file != nullptr) {
-    while (fgets(buf, sizeof(buf), cpuinfo_file) != 0) {
-      sscanf(buf, "cpu MHz : %f", &(cpu_frequency_mhz));
-    }
-    fclose (cpuinfo_file);
-  }
-#endif
-#ifdef MCSL_MAC_OS
-  uint64_t freq = 0;
-  size_t size;
-  size = sizeof(freq);
-  if (sysctlbyname("hw.cpufrequency", &freq, &size, nullptr, 0) < 0) {
-    perror("sysctl");
-  }
-  cpu_frequency_mhz = (float)freq / 1000000.;
-#endif
-  if (cpu_frequency_mhz == 0.) {
-    die("Failed to read CPU frequency\n");
-  }
-  cpu_frequency_ghz = (double) (cpu_frequency_mhz / 1000.0);
-  return cpu_frequency_ghz;
+  return ((double)load_cpu_frequency_khz()) / 1000.0 / 1000.0;
 }
 
 /*---------------------------------------------------------------------*/

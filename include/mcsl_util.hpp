@@ -92,6 +92,22 @@ void spin_for(uint64_t nb_cycles) {
 } // end namespace
 
 /*---------------------------------------------------------------------*/
+  
+using seconds_type = struct seconds_struct {
+  uint64_t seconds;
+  uint64_t milliseconds;
+};
+
+static inline
+seconds_type seconds_of(uint64_t cpu_frequency_khz, uint64_t cycles) {
+  uint64_t milliseconds = cycles / cpu_frequency_khz;
+  seconds_type t;
+  t.seconds = milliseconds / 1000l;
+  t.milliseconds = milliseconds - (1000l * t.seconds);
+  return t;
+}
+
+/*---------------------------------------------------------------------*/
 /* System clock */
 
 namespace clock {

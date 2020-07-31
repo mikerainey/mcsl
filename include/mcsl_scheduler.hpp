@@ -63,21 +63,17 @@ public:
   static
   void report(std::size_t) { }
 
-  static
-  clock::time_point_type on_enter_acquire() {
-    return clock::now();
-  }
+  static inline
+  void on_enter_work() { }
 
-  static
-  void on_exit_acquire(clock::time_point_type enter_acquire_time) { }
+  static inline
+  void on_exit_work() { }
 
-  static
-  clock::time_point_type on_enter_sleep() {
-    return clock::now();
-  }
+  static inline
+  void on_enter_acquire() { }
 
-  static
-  void on_exit_sleep(clock::time_point_type enter_sleep_time) { }
+  static inline
+  void on_exit_acquire() { }
 
   static inline
   void increment(configuration_type::counter_id_type id) { }

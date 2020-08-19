@@ -259,7 +259,6 @@ void release_print_lock() {
   assert(false);
 
 #define aprintf(f_, ...) \
-  printk("    "); \
   printk((f_), ##__VA_ARGS__); 
 
 #endif

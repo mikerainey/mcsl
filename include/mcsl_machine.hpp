@@ -47,16 +47,19 @@ std::vector<Resource_id> assign_workers_to_resources(resource_packing_type packi
   assert(resource_ids.size() == max_nb_workers_by_resource.size());
   std::vector<Resource_id> assignments(nb_workers);
   auto nb_resources = resource_ids.size();
-  std::size_t resource = 0;
+  // we start from resources w/ high ids and work down so as to avoid allocating core 0
+  std::size_t resource = nb_resources - 1;
+  auto next_resource = [&] {
+    resource = (resource == 0) ? nb_resources - 1 : resource - 1;
+  };
   for (std::size_t i = 0; i != nb_workers; ++i) {
     while (max_nb_workers_by_resource[resource] == 0) {
-      // advance resource to the next nonempty resource cell
-      resource = (resource + 1) % nb_resources;
+      next_resource();
     }
     max_nb_workers_by_resource[resource]--;
     assignments[i] = resource_ids[resource];
     if (packing == resource_packing_sparse) {
-      resource = (resource + 1) % nb_resources;
+      next_resource();
     }
   }
   return assignments;

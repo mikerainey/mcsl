@@ -197,6 +197,8 @@ public:
 
 #elif defined(MCSL_NAUTILUS)
 
+perworker::array<int> worker_cpu_bindings;
+  
 class minimal_worker {
 public:
 
@@ -211,7 +213,8 @@ public:
       b(id);
     };
     auto p = new nk_worker_activation_type(id, f);
-    nk_thread_start(nk_thread_init_fn, (void*)p, 0, 0, TSTACK_DEFAULT, 0, -1);
+    int remote_core = worker_cpu_bindings[id];
+    nk_thread_start(nk_thread_init_fn, (void*)p, 0, 0, TSTACK_DEFAULT, 0, remote_core);
   }
 
   class worker_exit_barrier {

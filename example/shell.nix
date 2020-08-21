@@ -35,7 +35,12 @@ stdenv.mkDerivation rec {
           "export PATH=${jemalloc}/bin:$PATH";
     in
     let cmdline = import "${cmdlineSrc}/script/default.nix" {}; in
-    let pview = import "${pviewSrc}/default.nix" {}; in      
+    let pviewExport =
+      if pviewSrc == null then ""
+      else
+	let pview = import "${pviewSrc}/default.nix" {}; in
+	"export PATH=${pview}/bin:$PATH";
+    in
     ''
     export CPP="${gcc}/bin/g++"
     export CC="${gcc}/bin/gcc"
@@ -43,7 +48,7 @@ stdenv.mkDerivation rec {
     export HWLOC_INCLUDE_PREFIX="-DMCSL_HAVE_HWLOC -I${hwloc.dev}/include/"
     export HWLOC_LIBRARY_PREFIX="-L${hwloc.lib}/lib/ -lhwloc"
     export CMDLINE_INCLUDE_PATH="${cmdline}/include"
-    export PATH=${pview}/bin:$PATH
+    ${pviewExport}
   '';
   
 }

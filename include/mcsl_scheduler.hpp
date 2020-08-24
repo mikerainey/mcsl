@@ -155,6 +155,10 @@ public:
   template <typename Body>
   static
   void launch_worker_thread(std::size_t id, const Body& b) {
+    if (id == 0) {
+      b(id);
+      return;
+    }
     auto t = std::thread([id, &b] {
       perworker::unique_id::initialize_worker(id);
       b(id);
@@ -211,6 +215,9 @@ public:
     auto p = new nk_worker_activation_type(id, f);
     int remote_core = worker_cpu_bindings[id];
     nk_thread_start(nk_thread_init_fn, (void*)p, 0, 0, TSTACK_DEFAULT, 0, remote_core);
+    if (id == 0) {
+      nk_join_all_children(0);
+    }
   }
 
   class worker_exit_barrier {

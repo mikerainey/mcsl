@@ -308,7 +308,9 @@ public:
       });
     }
     Interrupt::launch_ping_thread(nb_workers);
-    worker_loop(0);
+    Worker::launch_worker_thread(0, [&] (std::size_t i) {
+      worker_loop(i);
+    });
   }
 
   static

@@ -1,5 +1,9 @@
 #pragma once
 
+#include "mcsl_util.hpp"
+#include "mcsl_perworker.hpp"
+#include "mcsl_machine.hpp"
+
 #if defined(MCSL_LINUX)
 #include <thread>
 #include <condition_variable>
@@ -29,9 +33,6 @@ void nk_thread_init_fn(void *in, void **out) {
   delete p;
 }
 #endif
-
-#include "mcsl_util.hpp"
-#include "mcsl_perworker.hpp"
 
 namespace mcsl {
 
@@ -149,20 +150,19 @@ public:
 class minimal_worker {
 public:
 
-  static
-  void initialize_worker() { }
-
   template <typename Body>
   static
   void launch_worker_thread(std::size_t id, const Body& b) {
-    if (id == 0) {
+    auto b2 = [id, &b] {
+      mcsl::perworker::unique_id::initialize_worker(id);
+      pin_calling_worker();
       b(id);
+    };
+    if (id == 0) {
+      b2();
       return;
     }
-    auto t = std::thread([id, &b] {
-      perworker::unique_id::initialize_worker(id);
-      b(id);
-    });
+    auto t = std::thread(b2);
     t.detach();
   }
 
@@ -196,8 +196,6 @@ public:
 };
 
 #elif defined(MCSL_NAUTILUS)
-
-perworker::array<int> worker_cpu_bindings;
   
 class minimal_worker {
 public:
@@ -208,12 +206,17 @@ public:
   template <typename Body>
   static
   void launch_worker_thread(std::size_t id, const Body& b) {
-    std::function<void(std::size_t)> f = [&] (std::size_t id) {
+    std::function<void(std::size_t)> f = [=] (std::size_t id) {
       perworker::unique_id::initialize_worker(id);
       b(id);
     };
     auto p = new nk_worker_activation_type(id, f);
-    int remote_core = worker_cpu_bindings[id];
+    int remote_core = cpu_pinning_assignments[id];
+    if (remote_core == 0) {
+      mcsl::perworker::unique_id::initialize_worker(id);
+      b(id);
+      return;
+    }
     nk_thread_start(nk_thread_init_fn, (void*)p, 0, 0, TSTACK_DEFAULT, 0, remote_core);
     if (id == 0) {
       nk_join_all_children(0);

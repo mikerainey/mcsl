@@ -258,7 +258,6 @@ public:
     };
 
     auto worker_loop = [&] (std::size_t my_id) {
-      Worker::initialize_worker();
       auto &my_deque = deques.mine();
       scheduler_status_type status = scheduler_status_active;
       fiber_type *current = nullptr;

@@ -74,27 +74,9 @@ using fjnative_elastic = elastic<Stats, Logging>;
 
 /*---------------------------------------------------------------------*/
 /* Worker-thread configuration */
+
+using fjnative_worker = mcsl::minimal_worker;
   
-class fjnative_worker {
-public:
-
-  static
-  void initialize_worker() {
-    pin_calling_worker();
-  }
-
-  template <typename Body>
-  static
-  void launch_worker_thread(std::size_t id, const Body& b) {
-    mcsl::minimal_worker::launch_worker_thread(id, b);
-  }
-
-  using worker_exit_barrier = typename minimal_worker::worker_exit_barrier;
-  
-  using termination_detection_type = minimal_termination_detection;
-  
-};
-
 /*---------------------------------------------------------------------*/
 /* Scheduler configuration */
 

@@ -10,7 +10,9 @@
 
 #ifdef MCSL_NAUTILUS
 extern "C"
-ulong_t nk_detect_cpu_freq(uint32_t);
+unsigned long nk_detect_cpu_freq(uint32_t);
+extern "C"
+uint32_t nk_get_num_cpus (void);
 #endif
 
 #include "mcsl_perworker.hpp"
@@ -19,7 +21,7 @@ ulong_t nk_detect_cpu_freq(uint32_t);
 namespace mcsl {
 
 /*---------------------------------------------------------------------*/
-/* Policies for binding workers to hardware resources */
+/* Policies for pinning workers to hardware resources */
 
 using pinning_policy_type = enum pinning_policy_enum {
   pinning_policy_enabled,
@@ -37,10 +39,14 @@ using resource_binding_type = enum resource_binding_enum {
   resource_binding_by_numa_node
 };
 
-pinning_policy_type pinning_policy = pinning_policy_disabled;  
+pinning_policy_type pinning_policy = pinning_policy_disabled;
+
+/*---------------------------------------------------------------------*/
+/* CPU pinning (Linux) */
   
 template <typename Resource_id>
-std::vector<Resource_id> assign_workers_to_resources(resource_packing_type packing,
+std::vector<Resource_id> assign_workers_to_resources(
+                                                     resource_packing_type packing,
                                                      std::size_t nb_workers,
                                                      std::vector<std::size_t>& max_nb_workers_by_resource,
                                                      const std::vector<Resource_id>& resource_ids) {
@@ -65,7 +71,7 @@ std::vector<Resource_id> assign_workers_to_resources(resource_packing_type packi
   return assignments;
 }
 
-#ifdef MCSL_HAVE_HWLOC
+#ifdef MCSL_HAVE_HWLOC // ------- start hwloc
 
 using hwloc_coordinate_type = struct hwloc_coordinate_struct {
   int depth;
@@ -82,7 +88,8 @@ perworker::array<hwloc_cpuset_t> hwloc_cpusets;
 hwloc_topology_t topology;
 hwloc_cpuset_t all_cpus;
 
-void hwloc_assign_cpusets(std::size_t nb_workers,
+void hwloc_assign_cpusets(
+                          std::size_t nb_workers,
                           pinning_policy_type _pinning_policy,
                           resource_packing_type resource_packing,
                           resource_binding_type resource_binding) {
@@ -142,12 +149,13 @@ void hwloc_pin_calling_worker() {
   }
 }
   
-#endif
+#endif  // ------- end hwloc
 
-void assign_cpusets(std::size_t nb_workers,
-                    pinning_policy_type _pinning_policy,
-                    resource_packing_type resource_packing,
-                    resource_binding_type resource_binding) {
+void linux_assign_cpusets(
+                          std::size_t nb_workers,
+                          pinning_policy_type _pinning_policy,
+                          resource_packing_type resource_packing,
+                          resource_binding_type resource_binding) {
 #ifdef MCSL_HAVE_HWLOC
   hwloc_assign_cpusets(nb_workers, _pinning_policy, resource_packing, resource_binding);
 #endif
@@ -187,6 +195,47 @@ void destroy_hwloc(std::size_t nb_workers) {
   hwloc_topology_destroy(topology);
 #endif
 }
+
+/*---------------------------------------------------------------------*/
+/* CPU pinning (Nautilus) */
+
+#if defined(MCSL_NAUTILUS)
+
+static
+mcsl::perworker::array<int> cpu_pinning_assignments;
+
+int ping_thread_remote_core = -1;
+
+void nautilus_assign_cpusets(
+                          std::size_t nb_workers,
+                          pinning_policy_type _pinning_policy,
+                          resource_packing_type resource_packing,
+                          resource_binding_type resource_binding) {
+  auto nb_cpus = nk_get_num_cpus();
+  pinning_policy = _pinning_policy;
+  if ((pinning_policy == pinning_policy_disabled) ||
+      (resource_binding == resource_binding_all)) {
+    for (std::size_t i = 0; i < nb_workers; i++) {
+      cpu_pinning_assignments[i] = -1;
+    }
+    return;
+  }
+  if (resource_binding == resource_binding_by_numa_node) {
+    die("numa binding not yet supported in nautilus");
+  }
+  if (resource_packing == resource_packing_dense) {
+    std::size_t j = 1;
+    for (std::size_t i = 0; i < nb_workers; i++) {
+      cpu_pinning_assignments[i] = j;
+      j = (j + 1) % nb_cpus;
+    }
+    ping_thread_remote_core = (cpu_pinning_assignments[0] == 0) ? (nb_cpus - 1) : 0;
+  } else if (resource_packing == resource_packing_sparse) {
+    die("sparse cpu binding not yet supported in nautilus");
+  }
+}
+
+#endif
   
 /*---------------------------------------------------------------------*/
 /* Loader for CPU frequency */
@@ -221,9 +270,12 @@ double load_cpu_frequency_ghz() {
 
 std::size_t nb_workers = 0;
 
-void initialize_machine() {
-#if defined(MCSL_LINUX)
+void initialize_machine(
+                        pinning_policy_type pinning_policy = pinning_policy_enabled,
+                        resource_packing_type resource_packing = resource_packing_dense,
+                        resource_binding_type resource_binding = resource_binding_by_core) {
   init_print_lock();
+#if defined(MCSL_LINUX)
   nb_workers = deepsea::cmdline::parse_or_default_int("proc", 1);
   if (nb_workers > perworker::default_max_nb_workers) {
     die("Requested too many worker threads: %lld, should be maximum %lld\n",
@@ -237,34 +289,32 @@ void initialize_machine() {
     mcsl::initialize_hwloc(nb_workers, numa_alloc_interleaved);
   }
   { // assign the CPU-pinning policy
-    pinning_policy_type pinning_policy =
-      deepsea::cmdline::parse_or_default_bool("pinning_enabled", false) ? pinning_policy_enabled : pinning_policy_disabled;
-    resource_packing_type resource_packing = resource_packing_sparse;
+    if (! deepsea::cmdline::parse_or_default_bool("pinning_enabled", true)) {
+      pinning_policy = pinning_policy_disabled;
+    }
     { // resource packing
-      std::string s = deepsea::cmdline::parse_or_default_string("resource_packing", "sparse");
+      std::string s = deepsea::cmdline::parse_or_default_string("resource_packing", "");
       if (s == "sparse") {
         resource_packing = resource_packing_sparse;
       } else if (s == "dense") {
         resource_packing = resource_packing_dense;
-      } else {
-        die("bogus resource packing\n");
       }
     }
-    resource_binding_type resource_binding = resource_binding_all;
     { // resource binding
-      std::string s = deepsea::cmdline::parse_or_default_string("resource_binding", "all");
+      std::string s = deepsea::cmdline::parse_or_default_string("resource_binding", "");
       if (s == "all") {
         resource_binding = resource_binding_all;
       } else if (s == "by_core") {
         resource_binding = resource_binding_by_core;
       } else if (s == "by_numa_node") {
         resource_binding = resource_binding_by_numa_node;
-      } else {
-        die("bogus resource binding\n");
       }
     }
-    assign_cpusets(nb_workers, pinning_policy, resource_packing, resource_binding);
+    linux_assign_cpusets(nb_workers, pinning_policy, resource_packing, resource_binding);
   }
+#elif defined(MCSL_NAUTILUS)
+  assert(nb_workers > 0);
+  nautilus_assign_cpusets(nb_workers, pinning_policy, resource_packing, resource_binding);
 #endif
 }
 

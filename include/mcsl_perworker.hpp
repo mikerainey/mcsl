@@ -60,6 +60,9 @@ public:
 
   static
   void initialize_worker(std::size_t id) {
+    if (my_id == id) {
+      return;
+    }
     assert(my_id == uninitialized_id);
     my_id = id;
   }
@@ -157,6 +160,7 @@ public:
   }
 
   reference operator[](std::size_t i) {
+    assert(i < capacity);
     return items[i];
   }
 

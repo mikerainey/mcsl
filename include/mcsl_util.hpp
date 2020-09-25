@@ -253,10 +253,7 @@ void release_print_lock() {
 }
 
 #define die(f_, ...) \
-  acquire_print_lock();  \
-  printk((f_), ##__VA_ARGS__); \
-  release_print_lock();  \
-  assert(false);
+  printk((f_), ##__VA_ARGS__);
 
 #define aprintf(f_, ...) \
   printk((f_), ##__VA_ARGS__); 

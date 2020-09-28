@@ -243,6 +243,10 @@ void nautilus_assign_cpusets(
 uint64_t load_cpu_frequency_khz() {
   uint64_t cpu_frequency_khz = 0;
 #if defined(MCSL_LINUX)
+  cpu_frequency_khz = deepsea::cmdline::parse_or_default_int("cpu_frequency_khz", cpu_frequency_khz);
+  if (cpu_frequency_khz != 0) {
+    return cpu_frequency_khz;
+  }
   FILE *f;
   f = fopen("/sys/devices/system/cpu/cpu0/cpufreq/base_frequency", "r");
   if (f == nullptr) {

@@ -297,6 +297,7 @@ public:
     for (std::size_t i = 0; i < rngs.size(); ++i) {
       rngs[i] = hash(i + 31);
     }
+    Worker::initialize(nb_workers);
     elastic_type::initialize();
     Interrupt::initialize_signal_handler();
     termination_barrier.set_active(true);
@@ -310,6 +311,7 @@ public:
     Worker::launch_worker_thread(0, [&] (std::size_t i) {
       worker_loop(i);
     });
+    Worker::destroy();
   }
 
   static

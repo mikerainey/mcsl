@@ -32,6 +32,14 @@ void nk_thread_init_fn(void *in, void **out) {
   (*fp)(p->first);
   delete p;
 }
+extern "C"
+void mcsl_phase_begin(int nb_workers);
+extern "C"
+void mcsl_phase_end();
+extern "C"
+void mcsl_worker_notify_exit();
+extern "C"
+void mcsl_worker0_wait();
 #endif
 
 namespace mcsl {
@@ -150,6 +158,12 @@ public:
 class minimal_worker {
 public:
 
+  static
+  void initialize(std::size_t nb_workers) { }
+
+  static
+  void destroy() { }
+  
   template <typename Body>
   static
   void launch_worker_thread(std::size_t id, const Body& b) {
@@ -201,7 +215,14 @@ class minimal_worker {
 public:
 
   static
-  void initialize_worker() { }
+  void initialize(std::size_t nb_workers) {
+    mcsl_phase_begin((int)nb_workers);
+  }
+
+  static
+  void destroy() {
+    mcsl_phase_end();
+  }
 
   template <typename Body>
   static
@@ -219,7 +240,7 @@ public:
     }
     nk_thread_start(nk_thread_init_fn, (void*)p, 0, 0, TSTACK_DEFAULT, 0, remote_core);
     if (id == 0) {
-      nk_join_all_children(0);
+      mcsl_worker0_wait();
     }
   }
 
@@ -231,9 +252,7 @@ public:
     worker_exit_barrier(std::size_t) { }
 
     void wait(std::size_t my_id)  {
-      if (my_id == 0) {
-        nk_join_all_children(0);
-      }
+      mcsl_worker_notify_exit();
     }
 
   };

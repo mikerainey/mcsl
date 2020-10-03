@@ -63,7 +63,6 @@ public:
     if (my_id == id) {
       return;
     }
-    assert(my_id == uninitialized_id);
     my_id = id;
   }
 

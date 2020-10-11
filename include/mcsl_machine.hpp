@@ -206,16 +206,14 @@ mcsl::perworker::array<int> cpu_pinning_assignments;
 
 int ping_thread_remote_core = -1;
 
-void nautilus_assign_cpusets(
-                          std::size_t nb_workers,
-                          pinning_policy_type _pinning_policy,
-                          resource_packing_type resource_packing,
-                          resource_binding_type resource_binding) {
+void nautilus_assign_cpusets(pinning_policy_type _pinning_policy,
+			     resource_packing_type resource_packing,
+			     resource_binding_type resource_binding) {
   auto nb_cpus = nk_get_num_cpus();
   pinning_policy = _pinning_policy;
   if ((pinning_policy == pinning_policy_disabled) ||
       (resource_binding == resource_binding_all)) {
-    for (std::size_t i = 0; i < nb_workers; i++) {
+    for (std::size_t i = 0; i < cpu_pinning_assignments.size(); i++) {
       cpu_pinning_assignments[i] = -1;
     }
     return;
@@ -225,7 +223,7 @@ void nautilus_assign_cpusets(
   }
   if (resource_packing == resource_packing_dense) {
     std::size_t j = 1;
-    for (std::size_t i = 0; i < nb_workers; i++) {
+    for (std::size_t i = 0; i < cpu_pinning_assignments.size(); i++) {
       cpu_pinning_assignments[i] = j;
       j = (j + 1) % nb_cpus;
     }
@@ -317,8 +315,7 @@ void initialize_machine(
     linux_assign_cpusets(nb_workers, pinning_policy, resource_packing, resource_binding);
   }
 #elif defined(MCSL_NAUTILUS)
-  assert(nb_workers > 0);
-  nautilus_assign_cpusets(nb_workers, pinning_policy, resource_packing, resource_binding);
+  nautilus_assign_cpusets(pinning_policy, resource_packing, resource_binding);
 #endif
 }
 

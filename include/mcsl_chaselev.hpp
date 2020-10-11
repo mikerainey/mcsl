@@ -312,6 +312,14 @@ public:
       worker_loop(i);
     });
     Worker::destroy();
+#ifndef NDEBUG
+    for (std::size_t i = 0; i < buffers.size(); i++) {
+      assert(buffers[i].empty());
+    }
+    for (std::size_t i = 0; i < deques.size(); i++) {
+      assert(deques[i].empty());
+    }
+#endif
   }
 
   static

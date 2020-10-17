@@ -20,9 +20,14 @@ typedef int clockid_t;
 #define CLOCK_MONOTONIC                 1
 extern "C"
 int clock_gettime(clockid_t, struct timespec*);
-namespace nautilus {
-#include <nautilus/spinlock.h>
-}
+extern "C"
+void mcsl_init_print_lock();
+extern "C"
+void mcsl_destroy_print_lock();
+extern "C"
+void mcsl_take_print_lock();
+extern "C"
+void mcsl_release_print_lock();
 #endif
 
 namespace mcsl {
@@ -216,31 +221,31 @@ void aprintf(const char *fmt, ...) {
   release_print_lock();
   va_end(ap);
 }
-
+  
 #elif defined(MCSL_NAUTILUS)
-
-nautilus::spinlock_t print_lock;
 
 static inline  
 void init_print_lock() {
-  nautilus::spinlock_init(&print_lock);
+  mcsl_init_print_lock();
 }
 
 static inline  
 void acquire_print_lock() {
-  nautilus::spin_lock(&print_lock);
+  mcsl_take_print_lock();
 }
 
 static inline
 void release_print_lock() {
-  nautilus::spin_unlock(&print_lock);
+  mcsl_release_print_lock();
 }
 
 #define die(f_, ...) \
   printk((f_), ##__VA_ARGS__);
 
 #define aprintf(f_, ...) \
-  printk((f_), ##__VA_ARGS__); 
+  mcsl_take_print_lock(); \
+  printk((f_), ##__VA_ARGS__); \
+  mcsl_release_print_lock();
 
 #endif
 

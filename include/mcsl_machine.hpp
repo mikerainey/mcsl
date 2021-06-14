@@ -8,11 +8,13 @@
 #include <hwloc.h>
 #endif
 
-#ifdef MCSL_NAUTILUS
+#if defined(MCSL_NAUTILUS)
 extern "C"
 unsigned long nk_detect_cpu_freq(uint32_t);
 extern "C"
 uint32_t nk_get_num_cpus (void);
+#elif defined(MCSL_LINUX)
+#include "cmdline.hpp"
 #endif
 
 #include "mcsl_perworker.hpp"
